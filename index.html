@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>루미큐브</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* 색 — 스티커 팩 느낌: 진한 포도색 바탕 + 선명한 포인트 세 가지 */
+    --ink:#1a1240;        /* 외곽선·글자 */
+    --grape:#3b2a90;      /* 바탕 */
+    --grape-deep:#2a1d6e; /* 판 */
+    --sun:#ffd23f;        /* 주요 버튼·내 차례 */
+    --pink:#ff5fa2;       /* 고른 타일·강조 */
+    --sky:#4fd2ff;        /* 새로 놓은 타일 */
+    --mint:#3ee0a1;       /* 성공 */
+    --paper:#fff8ec;      /* 타일·스티커 */
+    --paper-2:#f3e7cf;
+    --danger:#ff4d5e;
+    --font-ui:"Jua","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+    --font-num:"Black Han Sans","Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    --tw: clamp(30px, min(4.3vw, 7.4vh), 54px);   /* 타일 너비 */
+    --th: calc(var(--tw) * 1.36);                  /* 타일 높이 */
+    --ctl-h: 46px;                                 /* 상단 칩·버튼 공통 높이 */
+    --btn-h: 50px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; overflow:hidden;}
+  body{
+    font-family:var(--font-ui); color:var(--paper);
+    background-color:var(--grape);
+    background-image:radial-gradient(rgba(255,255,255,.10) 1.3px, transparent 1.5px);
+    background-size:22px 22px;
+    user-select:none; -webkit-user-select:none;
+  }
+  button{font-family:inherit; cursor:pointer; border:none; color:inherit;}
+  button:focus-visible{outline:3px solid var(--sky); outline-offset:3px;}
+  .hidden{display:none !important;}
+
+  /* ---------- 스티커 버튼 ---------- */
+  .btn{
+    height:var(--btn-h); padding:0 20px; border-radius:16px;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font-size:18px; color:var(--ink); background:var(--paper);
+    border:2.5px solid var(--ink); box-shadow:0 4px 0 var(--ink);
+    transition:transform .07s, box-shadow .07s;
+  }
+  .btn:active{transform:translateY(3px); box-shadow:0 1px 0 var(--ink);}
+  .btn:disabled{opacity:.45; pointer-events:none;}
+  .btn.primary{background:var(--sun);}
+  .btn.pink{background:var(--pink); color:#fff;}
+  .btn.big{height:62px; font-size:22px; padding:0 30px; border-radius:18px; box-shadow:0 5px 0 var(--ink);}
+  .btn.small{height:40px; font-size:16px; padding:0 14px; border-radius:12px; box-shadow:0 3px 0 var(--ink);}
+
+  /* ---------- 타일 ---------- */
+  .tile{
+    width:var(--tw); height:var(--th); flex:0 0 auto;
+    background:var(--paper); border:2px solid var(--ink);
+    border-radius:calc(var(--tw)*.18);
+    box-shadow:0 3px 0 var(--ink);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative; touch-action:none; cursor:grab;
+    transition:transform .12s, box-shadow .12s;
+  }
+  .tile .num{font-family:var(--font-num); font-size:calc(var(--tw)*.58); line-height:1;}
+  .tile .mark{font-size:calc(var(--tw)*.22); line-height:1; margin-top:calc(var(--tw)*.07);}
+  .tile.joker{background:linear-gradient(160deg, #fff8ec 55%, #ffe1ef 100%);}
+  .tile.joker .num{font-size:calc(var(--tw)*.6);}
+  .tile.selected{transform:translateY(-6px) rotate(-3deg); background:#fff; box-shadow:0 0 0 3px var(--pink), 0 7px 0 var(--ink);}
+  .tile.new::after{
+    content:""; position:absolute; inset:-5px; border-radius:calc(var(--tw)*.24);
+    border:3px solid var(--sky); pointer-events:none;
+  }
+  .tile.flash{animation:flash 1.4s ease-out;}
+  @keyframes flash{0%,45%{box-shadow:0 0 0 4px var(--sun), 0 3px 0 var(--ink); transform:scale(1.08);} 100%{box-shadow:0 3px 0 var(--ink); transform:none;}}
+  .tile.locked{cursor:default;}
+  .drag-ghost{position:fixed; z-index:999; pointer-events:none; display:flex; gap:3px; transform:translate(-50%,-60%) rotate(-4deg) scale(1.1); filter:drop-shadow(0 8px 0 rgba(26,18,64,.5));}
+
+  /* ---------- 시작 화면 ---------- */
+  #startScreen{height:100%; display:flex; padding:16px; overflow-y:auto;}
+  .start-wrap{width:min(560px,100%); margin:auto; display:flex; flex-direction:column; align-items:center; gap:22px;}  /* margin:auto → 화면이 낮아도 위가 잘리지 않고 스크롤됨 */
+  .logo{display:flex; gap:8px; margin-bottom:-6px;}
+  .logo .tile{--tw:52px; cursor:default; box-shadow:0 5px 0 var(--ink);}
+  .logo .tile:nth-child(1){transform:rotate(-10deg) translateY(4px);}
+  .logo .tile:nth-child(2){transform:rotate(4deg) translateY(-6px);}
+  .logo .tile:nth-child(3){transform:rotate(-3deg);}
+  .logo .tile:nth-child(4){transform:rotate(11deg) translateY(-2px);}
+  .logo-title{
+    font-family:var(--font-num); font-size:clamp(44px,7vw,64px); line-height:1; color:var(--sun);
+    letter-spacing:2px; text-shadow:3px 3px 0 var(--ink), -1.5px -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 0 7px 0 var(--ink);
+  }
+  .start-card{
+    width:100%; padding:22px 24px 18px; border-radius:24px;
+    background:var(--paper); color:var(--ink); border:3px solid var(--ink); box-shadow:0 8px 0 var(--ink);
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+  }
+  .opt-table{display:grid; grid-template-columns:88px 1fr; row-gap:12px; align-items:center; width:100%;}
+  .opt-label{font-size:17px;}
+  .toggle-row{display:grid; gap:8px;}
+  .toggle-row.c2{grid-template-columns:repeat(2,1fr);}
+  .toggle-row.c3{grid-template-columns:repeat(3,1fr);}
+  .tg{
+    height:46px; border-radius:13px; font-size:17px;
+    background:#fff; color:var(--ink); border:2.5px solid var(--ink); box-shadow:0 3px 0 var(--ink);
+    transition:transform .07s;
+  }
+  .tg:active{transform:translateY(2px);}
+  .tg.on{background:var(--ink); color:var(--sun);}
+  .start-actions{display:flex; gap:12px; justify-content:center; width:100%;}
+  .start-actions .btn{flex:1; max-width:250px;}
+  .start-foot{width:100%; display:flex; align-items:center; justify-content:space-between;}
+  .ver{font-size:13px; opacity:.5;}
+
+  /* ---------- 게임 화면 ---------- */
+  #gameScreen{height:100%; display:flex; flex-direction:column; gap:10px; padding:10px 12px 12px;}
+  .topbar{flex:0 0 auto; display:flex; align-items:center; gap:8px;}
+  .sticker{
+    height:var(--ctl-h); border-radius:14px; display:flex; align-items:center; justify-content:center; gap:7px;
+    background:var(--paper); color:var(--ink); border:2.5px solid var(--ink); box-shadow:0 3px 0 var(--ink);
+    font-size:16px; white-space:nowrap; padding:0 13px; flex:0 0 auto;
+  }
+  button.sticker:active{transform:translateY(2px); box-shadow:0 1px 0 var(--ink);}
+  .icon-btn{width:var(--ctl-h); padding:0; font-size:21px;}
+  .players{display:flex; gap:8px; flex:1; min-width:0; overflow:hidden;}
+  .chip .cnt{display:flex; align-items:center; gap:4px; font-family:var(--font-num); font-size:17px;}
+  .chip .mini{width:12px; height:16px; border-radius:3px; background:var(--grape); display:inline-block;}
+  .chip.active{background:var(--pink); color:#fff;}
+  .chip.active .mini{background:#fff;}
+  .nm-short{display:none;}
+  .chip.thinking .cnt::after{content:"생각 중…"; font-family:var(--font-ui); font-size:14px; margin-left:4px;}
+  .stat{background:var(--grape-deep); color:var(--paper); border-color:var(--ink); gap:2px;}
+  .stat .pool-label{margin-right:6px;}
+  .stat b{font-family:var(--font-num); font-weight:400; font-size:17px;}
+  .turnflag{background:var(--sun); min-width:112px;}
+  .turnflag.wait{background:var(--grape-deep); color:var(--paper);}
+  .word-btn{background:var(--sky);}
+
+  .board{
+    flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:16px;
+    display:flex; flex-wrap:wrap; align-content:flex-start; gap:14px 16px;
+    background-color:var(--grape-deep);
+    background-image:radial-gradient(rgba(255,255,255,.07) 1.2px, transparent 1.4px); background-size:18px 18px;
+    border:2.5px solid var(--ink); border-radius:22px; box-shadow:inset 0 5px 0 rgba(0,0,0,.22);
+  }
+  .set{
+    display:flex; gap:4px; padding:8px 8px 10px; border-radius:15px; min-height:calc(var(--th) + 20px);
+    background:rgba(255,255,255,.09); border:2.5px solid transparent; align-items:center;
+  }
+  .set.invalid{border-color:var(--danger); background:rgba(255,77,94,.2);}
+  .set.target, .newset.target{border-color:var(--sun); border-style:solid; background:rgba(255,210,63,.18);}
+  .slot{
+    width:var(--tw); height:var(--th); border-radius:calc(var(--tw)*.18);
+    border:2.5px dashed var(--sun); color:var(--sun);
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-num); font-size:calc(var(--tw)*.5); cursor:pointer;
+  }
+  .newset{
+    min-width:calc(var(--tw)*3 + 24px); min-height:calc(var(--th) + 20px); padding:8px 16px;
+    border-radius:15px; border:2.5px dashed rgba(255,248,236,.45); color:rgba(255,248,236,.8);
+    display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer;
+  }
+  .empty-msg{width:100%; text-align:center; opacity:.6; font-size:17px; margin-top:4px;}
+
+  .tray{flex:0 0 auto; display:flex; flex-direction:column; gap:10px;}
+  .tray-info{position:relative; display:flex; align-items:center; justify-content:space-between; height:42px; padding:0 4px; font-size:17px;}
+  .tray-info.has-msg > .meld, .tray-info.has-msg > #handInfo{visibility:hidden;}
+  .meld{color:var(--sun);}
+  .meld.ok{color:var(--mint);}
+  .rack{
+    display:flex; flex-wrap:wrap; gap:6px; align-content:flex-start;
+    min-height:calc(var(--th) + 24px); max-height:calc(var(--th)*2 + 32px); overflow-y:auto;
+    padding:12px 10px 10px; border-radius:20px; background:var(--ink); border:2.5px solid var(--ink);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);
+  }
+  .rack.target{border-color:var(--sun);}
+  .actions{display:grid; grid-template-columns:repeat(3, auto) 1fr repeat(2, auto); gap:10px; align-items:center;}
+  .actions .spacer{min-width:0;}
+
+  /* ---------- 알림 (판과 내 패 사이 줄에 표시 — 판의 타일을 가리지 않게) ---------- */
+  .toast{
+    position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center;
+    padding:0 18px; border-radius:14px; font-size:17px; line-height:1.2; text-align:center;
+    background:var(--paper); color:var(--ink); border:2.5px solid var(--ink); box-shadow:0 3px 0 var(--ink);
+    opacity:0; transform:translateY(4px); transition:opacity .2s, transform .2s; pointer-events:none;
+  }
+  .toast span{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .toast.show{opacity:1; transform:none;}
+  .toast.err{background:var(--danger); color:#fff;}
+  @media (max-width:820px){ .toast{font-size:15px;} }
+
+  /* ---------- 팝업 ---------- */
+  .overlay{position:fixed; inset:0; z-index:100; background:rgba(26,18,64,.6); display:flex; align-items:center; justify-content:center; padding:16px;}
+  .modal{
+    width:min(520px,100%); max-height:92vh; overflow-y:auto; border-radius:24px; padding:24px 26px;
+    background:var(--paper); color:var(--ink); border:3px solid var(--ink); box-shadow:0 8px 0 var(--ink);
+    animation:pop .18s ease-out;
+  }
+  @keyframes pop{from{transform:scale(.94); opacity:0;} to{transform:none; opacity:1;}}
+  .modal h2{margin:0 0 14px; font-family:var(--font-num); font-weight:400; font-size:30px; text-align:center;}
+  .modal p{margin:6px 0; font-size:17px; line-height:1.55;}
+  .modal .sub{text-align:center; opacity:.7;}
+  .modal-actions{display:flex; gap:10px; justify-content:center; margin-top:18px;}
+  .modal-actions .btn{flex:1; max-width:200px;}
+  .code-big{display:flex; gap:10px; justify-content:center; margin:6px 0 10px;}
+  .code-big span{
+    width:62px; height:78px; border-radius:14px; background:var(--ink); color:var(--sun);
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-num); font-size:46px;
+    box-shadow:0 4px 0 var(--pink);
+  }
+  .code-big span.empty{background:var(--paper-2); box-shadow:inset 0 0 0 2.5px var(--ink);}
+  .summary{text-align:center; font-size:17px; color:var(--grape); min-height:24px;}
+  .keypad{display:grid; grid-template-columns:repeat(3, 1fr); gap:9px; margin-top:12px;}
+  .keypad button{height:54px; border-radius:14px; font-family:var(--font-num); font-size:26px; background:#fff; color:var(--ink); border:2.5px solid var(--ink); box-shadow:0 3px 0 var(--ink);}
+  .keypad button:active{transform:translateY(2px); box-shadow:0 1px 0 var(--ink);}
+  .keypad button.fn{font-family:var(--font-ui); font-size:17px; background:var(--paper-2);}
+  table.res{width:100%; border-collapse:collapse; font-size:17px; margin:6px 0 4px;}
+  table.res th, table.res td{padding:9px 8px; border-bottom:2px dashed rgba(26,18,64,.18); text-align:center;}
+  table.res th{font-size:15px; opacity:.6; font-weight:400;}
+  table.res td:first-child, table.res th:first-child{text-align:left;}
+  table.res tr.me td{color:var(--grape);}
+  .score-box{margin-top:14px; padding:14px 16px; border-radius:18px; background:#fff; border:2.5px solid var(--ink); box-shadow:0 4px 0 var(--ink);}
+  .score-line{display:flex; justify-content:space-between; align-items:baseline; font-size:17px; padding:4px 0;}
+  .score-line b{font-family:var(--font-num); font-weight:400;}
+  .score-line.total{border-top:2.5px solid var(--ink); margin-top:6px; padding-top:10px; font-size:22px;}
+  .score-line.total b{font-size:30px; color:var(--pink);}
+  .score-meta{display:flex; justify-content:space-between; margin-top:8px; font-size:15px; opacity:.65;}
+  .rule{display:flex; flex-direction:column; gap:6px; padding:12px 0; border-bottom:2px dashed rgba(26,18,64,.18);}
+  .rule:last-of-type{border-bottom:none;}
+  .rule b{font-size:19px;}
+  .rule .ex{display:flex; gap:4px; flex-wrap:wrap; padding:4px 0 2px;}
+  .rule .ex .tile{cursor:default; --tw:36px;}
+  .term{display:inline-flex; align-items:center; height:30px; padding:0 12px; border-radius:10px; border:2px solid var(--ink); margin-right:6px; font-size:17px;}
+  .term.t-meld{background:var(--sun);} .term.t-group{background:var(--pink); color:#fff;} .term.t-run{background:var(--sky);} .term.t-joker{background:var(--mint);}
+  .menu-list{display:flex; flex-direction:column; gap:12px;}
+  .menu-list .btn{width:100%;}
+
+  /* ---------- 화면 크기별 조정 ---------- */
+  @media (max-height:640px){
+    :root{--btn-h:44px; --ctl-h:42px;}
+    #gameScreen{gap:8px; padding:8px 10px 10px;}
+    .start-wrap{gap:14px;}
+    .logo .tile{--tw:40px;}
+    .logo-title{font-size:40px;}
+    .start-card{padding:16px 20px 14px; gap:12px;}
+    .opt-table{row-gap:8px;}
+    .tg{height:40px;}
+    .btn.big{height:52px; font-size:20px;}
+  }
+  @media (max-width:900px){
+    .nm-full{display:none;} .nm-short{display:inline;}
+    .stat .pool-label, .word-btn .lbl{display:none;}
+    .turnflag{min-width:0;}
+  }
+  @media (max-width:820px){  /* 세로 화면: 버튼을 3칸·2칸 두 줄로 가지런히 */
+    .actions{grid-template-columns:repeat(6,1fr);}
+    .actions .spacer{display:none;}
+    .actions .btn{padding:0 8px; font-size:16px;}
+    #undoBtn, #sortColorBtn, #sortNumBtn{grid-column:span 2;}
+    #drawBtn, #endTurnBtn{grid-column:span 3;}
+  }
+  @media (max-width:700px){  /* 좁은 세로 화면: 컴퓨터 칩을 두 번째 줄로 */
+    .topbar{flex-wrap:wrap;}
+    #menuBtn{margin-right:auto;}
+    .players{order:10; flex-basis:100%;}
+    .nm-full{display:inline;} .nm-short{display:none;}
+  }
+  /* 인터넷이 없어 글꼴을 못 받았을 때: 기본 글꼴을 굵게 써서 분위기를 유지 */
+  .nofont body, .nofont button{font-weight:700;}
+  .nofont .tile .num, .nofont .logo-title, .nofont .modal h2, .nofont .code-big span, .nofont .keypad button,
+  .nofont .chip .cnt, .nofont .stat b, .nofont .score-line b, .nofont .slot{font-weight:900;}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+</style>
+</head>
+<body>
+
+<!-- ================= 시작 화면 ================= -->
+<div id="startScreen">
+  <div class="start-wrap">
+    <div class="logo" id="logoTiles"></div>
+    <div class="logo-title" id="appTitle"></div>
+  <div class="start-card">
+    <button class="btn pink big hidden" id="resumeBtn" style="width:100%; max-width:512px">▶ 이어하기</button>
+
+    <div class="opt-table">
+      <div class="opt-label">게임</div>
+      <div class="toggle-row c2" data-opt="kind">
+        <button class="tg" data-v="solo">혼자 하기</button>
+        <button class="tg" data-v="group">모둠전</button>
+      </div>
+      <div class="opt-label">모드</div>
+      <div class="toggle-row c2" data-opt="mode">
+        <button class="tg" data-v="quick">빠른 판</button>
+        <button class="tg" data-v="full">정식</button>
+      </div>
+      <div class="opt-label">컴퓨터 수</div>
+      <div class="toggle-row c3" data-opt="cpus">
+        <button class="tg" data-v="1">1명</button>
+        <button class="tg" data-v="2">2명</button>
+        <button class="tg" data-v="3">3명</button>
+      </div>
+      <div class="opt-label">실력</div>
+      <div class="toggle-row c2" data-opt="level">
+        <button class="tg" data-v="0">쉬움</button>
+        <button class="tg" data-v="1">보통</button>
+      </div>
+    </div>
+
+    <div class="start-actions" id="soloActions">
+      <button class="btn primary big" id="newGameBtn">새 게임 시작</button>
+    </div>
+    <div class="start-actions hidden" id="groupActions">
+      <button class="btn primary big" id="makeCodeBtn">판 코드 만들기</button>
+      <button class="btn big" id="enterCodeBtn">코드 입력하기</button>
+    </div>
+    <div class="start-foot">
+      <span class="ver" id="verLabel"></span>
+      <button class="btn small" id="rulesBtnStart" style="background:var(--sky)">? 규칙</button>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- ================= 게임 화면 ================= -->
+<div id="gameScreen" class="hidden">
+  <div class="topbar">
+    <button class="sticker icon-btn" id="menuBtn" aria-label="메뉴">≡</button>
+    <div class="players" id="players"></div>
+    <div class="sticker stat" id="poolStat"></div>
+    <div class="sticker stat hidden" id="roundStat"></div>
+    <div class="sticker turnflag" id="turnFlag"></div>
+    <button class="sticker word-btn" id="wordBtn">📖<span class="lbl">용어</span></button>
+    <button class="sticker icon-btn" id="soundBtn" aria-label="효과음">🔇</button>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="tray">
+    <div class="tray-info">
+      <span class="meld" id="meldInfo"></span>
+      <span id="handInfo" style="opacity:.75"></span>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <div class="rack" id="rack" data-drop="hand"></div>
+    <div class="actions">
+      <button class="btn" id="undoBtn">↶ 되돌리기</button>
+      <button class="btn" id="sortColorBtn">색별</button>
+      <button class="btn" id="sortNumBtn">숫자별</button>
+      <div class="spacer"></div>
+      <button class="btn pink" id="drawBtn">뽑고 넘기기</button>
+      <button class="btn primary" id="endTurnBtn">턴 끝내기 ✔</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+/* =====================================================================
+   설정 — 자주 바꿀 값은 모두 여기에 모아 두었습니다.
+   ===================================================================== */
+const CONFIG = {
+  APP_NAME: '루미큐브',        // 화면에 보이는 앱 이름 (바꿀 때 여기만 고치면 됨)
+  APP_VERSION: 'v1.1',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
+
+  // 빠른 판 / 정식 규칙
+  QUICK: { START_TILES: 10, FIRST_MELD: 20, GROUP_TURN_LIMIT: 15 },
+  FULL:  { START_TILES: 14, FIRST_MELD: 30, GROUP_TURN_LIMIT: 25 },
+
+  // 모둠전 점수 공식: 낸 합 − 남은 합 + 승리 보너스 + 남은 턴 × 턴당 점수
+  SCORE: { WIN_BONUS: 50, PER_TURN_LEFT: 5, JOKER_PENALTY: 30 },
+
+  CPU_DELAY_MS: 1000,           // 컴퓨터 한 명이 두는 데 걸리는 연출 시간(ms)
+
+  // 타일 색: 색약 학생도 구분할 수 있게 기호를 함께 씁니다.
+  COLORS: [
+    { name: '빨강', hex: '#e8362f', mark: '●' },
+    { name: '파랑', hex: '#2563eb', mark: '▲' },
+    { name: '주황', hex: '#f08c00', mark: '■' },
+    { name: '검정', hex: '#1a1240', mark: '◆' },
+  ],
+  CPU_NAMES: ['컴퓨터1', '컴퓨터2', '컴퓨터3'],
+};
+
+/*LOGIC-START*/
+/* =====================================================================
+   게임 규칙 (화면과 분리된 순수 로직)
+   ===================================================================== */
+
+// 타일 번호 0~103: 4색 × 13 × 2벌, 104·105: 조커
+const JOKER_IDS = [104, 105];
+function isJoker(id){ return id >= 104; }
+function tileColor(id){ return Math.floor(id / 26); }
+function tileNum(id){ return (id % 13) + 1; }
+
+// 판 코드(4자리)에 설정을 함께 담습니다: code % 12 → 모드·컴퓨터 수·실력
+// 그래서 코드만 같으면 모둠원 모두 같은 조건으로 시작합니다.
+function settingsFromCode(code){
+  const c = code % 12;
+  return { mode: c % 2 === 0 ? 'quick' : 'full', cpus: (Math.floor(c / 2) % 3) + 1, level: Math.floor(c / 6) };
+}
+function makeCode(mode, cpus, level, rnd){
+  const combo = (mode === 'quick' ? 0 : 1) + (cpus - 1) * 2 + level * 6;
+  let base = 1000 + Math.floor(rnd * 9000);
+  let code = base - (base % 12) + combo;
+  if (code < 1000) code += 12;
+  if (code > 9999) code -= 12;
+  return code;
+}
+
+// 씨앗 기반 난수 — 모든 무작위는 이것 하나만 씁니다(Math.random을 섞으면 같은 코드라도 판이 달라짐).
+function seededRandom(seed){
+  let a = (seed * 2654435761) >>> 0;
+  return function(){
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 세트 판정: 그룹(같은 숫자·다른 색 3~4장) 또는 연속(같은 색 이어지는 숫자 3장 이상)
+// 결과에는 화면 표시 순서(order)와 각 타일이 나타내는 숫자(values)가 들어 있습니다.
+function analyzeSet(ids){
+  const real = ids.filter(id => !isJoker(id));
+  const jokers = ids.filter(isJoker);
+  const n = ids.length;
+  const fallbackOrder = real.slice().sort((a, b) => tileColor(a) - tileColor(b) || tileNum(a) - tileNum(b)).concat(jokers);
+  if (n < 3) return { ok: false, reason: '세트는 3장 이상이어야 해요', order: fallbackOrder };
+  if (real.length === 0) return { ok: false, reason: '조커만으로는 세트를 만들 수 없어요', order: fallbackOrder };
+
+  const nums = real.map(tileNum), colors = real.map(tileColor);
+  const sameNum = nums.every(v => v === nums[0]);
+  const sameColor = colors.every(v => v === colors[0]);
+
+  // 그룹
+  if (sameNum) {
+    const distinct = new Set(colors).size === colors.length;
+    if (n <= 4 && distinct) {
+      const values = {};
+      ids.forEach(id => values[id] = nums[0]);
+      const order = real.slice().sort((a, b) => tileColor(a) - tileColor(b)).concat(jokers);
+      return { ok: true, type: 'group', value: nums[0] * n, order, values };
+    }
+    if (!sameColor || real.length === 1) {
+      if (n > 4) return { ok: false, reason: '그룹은 4장까지만 만들 수 있어요', order: fallbackOrder };
+      return { ok: false, reason: '그룹에 같은 색이 두 장 있어요', order: fallbackOrder };
+    }
+  }
+
+  // 연속
+  if (sameColor) {
+    if (new Set(nums).size !== nums.length) return { ok: false, reason: '연속에 같은 숫자가 두 장 있어요', order: fallbackOrder };
+    if (n > 13) return { ok: false, reason: '연속은 13장까지예요', order: fallbackOrder };
+    const min = Math.min(...nums), max = Math.max(...nums);
+    if (max - min + 1 > n) return { ok: false, reason: '연속의 숫자가 이어지지 않아요 (빈 칸은 조커로만 채울 수 있어요)', order: fallbackOrder };
+    // 남는 조커는 위쪽으로 먼저 이어 붙이고, 13을 넘으면 아래쪽으로
+    const start = Math.min(min, 14 - n);
+    const order = [], values = {};
+    let j = 0;
+    for (let v = start; v < start + n; v++) {
+      const id = real.find(r => tileNum(r) === v);
+      const use = id !== undefined ? id : jokers[j++];
+      order.push(use); values[use] = v;
+    }
+    let value = 0; for (let v = start; v < start + n; v++) value += v;
+    return { ok: true, type: 'run', value, order, values };
+  }
+
+  return { ok: false, reason: '그룹(같은 숫자, 다른 색)이나 연속(같은 색, 이어지는 숫자)이어야 해요', order: fallbackOrder };
+}
+
+// 남은 타일 점수(조커는 벌점이 큼)
+function handPenalty(hand){
+  return hand.reduce((s, id) => s + (isJoker(id) ? CONFIG.SCORE.JOKER_PENALTY : tileNum(id)), 0);
+}
+
+function rules(mode){ return mode === 'quick' ? CONFIG.QUICK : CONFIG.FULL; }
+
+// 새 게임 만들기: 코드 하나로 타일 섞기와 분배가 결정됩니다.
+function createGame(code, kind){
+  const s = settingsFromCode(code);
+  const r = rules(s.mode);
+  const rnd = seededRandom(code);
+  const pool = [];
+  for (let i = 0; i < 106; i++) pool.push(i);
+  for (let i = pool.length - 1; i > 0; i--) {   // 피셔–예이츠 섞기
+    const k = Math.floor(rnd() * (i + 1));
+    [pool[i], pool[k]] = [pool[k], pool[i]];
+  }
+  const nPlayers = s.cpus + 1;
+  const hands = Array.from({ length: nPlayers }, () => []);
+  for (let t = 0; t < r.START_TILES; t++)
+    for (let p = 0; p < nPlayers; p++) hands[p].push(pool.shift());
+  return {
+    code, kind, mode: s.mode, cpus: s.cpus, level: s.level, version: CONFIG.APP_VERSION,
+    pool, hands, board: [],
+    melded: Array(nPlayers).fill(false),
+    current: 0, round: 1, passes: 0, playedSum: 0,
+    over: false, result: null,
+    turnStart: { board: [], hand: hands[0].slice() },
+  };
+}
+
+/* ---------- 컴퓨터 ---------- */
+// 자기 패에서 가장 점수가 큰 세트 하나를 찾습니다. (결정적: 같은 상황이면 항상 같은 선택)
+function bestSetFromHand(hand, level){
+  // 조커는 두 단계 모두 씁니다(안 쓰면 쉬움 컴퓨터는 조커를 쥔 채 영영 이길 수 없음).
+  const jokers = hand.filter(isJoker);
+  const cands = [];
+  // 그룹
+  for (let num = 1; num <= 13; num++) {
+    const byColor = [];
+    for (let c = 0; c < 4; c++) {
+      const id = hand.find(h => !isJoker(h) && tileNum(h) === num && tileColor(h) === c);
+      if (id !== undefined) byColor.push(id);
+    }
+    if (byColor.length >= 3) cands.push(byColor);
+    else if (byColor.length === 2 && jokers.length >= 1) cands.push(byColor.concat(jokers[0]));
+  }
+  // 연속 (조커는 빈 칸 채우기에만, 끝이 조커로 끝나지 않게)
+  for (let c = 0; c < 4; c++) {
+    const byNum = {};
+    hand.forEach(h => { if (!isJoker(h) && tileColor(h) === c && byNum[tileNum(h)] === undefined) byNum[tileNum(h)] = h; });
+    for (let start = 1; start <= 13; start++) {
+      if (byNum[start] === undefined) continue;
+      const seq = []; let ju = 0;
+      for (let v = start; v <= 13; v++) {
+        if (byNum[v] !== undefined) seq.push(byNum[v]);
+        else if (ju < jokers.length) seq.push(jokers[ju++]);
+        else break;
+        if (seq.length >= 3 && !isJoker(seq[seq.length - 1])) cands.push(seq.slice());
+      }
+    }
+  }
+  let best = null, bestVal = -1;
+  for (const c of cands) {
+    const a = analyzeSet(c);
+    if (!a.ok) continue;
+    if (a.value > bestVal || (a.value === bestVal && c.length > best.length)) { best = c; bestVal = a.value; }
+  }
+  return best;
+}
+
+// 컴퓨터 한 턴의 계획: 쉬움 = 자기 패로 세트 내기, 보통 = + 판의 세트에 붙이기·조커 활용
+function cpuPlan(hand, board, melded, level, threshold){
+  let h = hand.slice();
+  let newSets = [];
+  while (true) {
+    const best = bestSetFromHand(h, level);
+    if (!best) break;
+    newSets.push(best);
+    h = h.filter(id => !best.includes(id));
+  }
+  if (!melded) {
+    const sum = newSets.reduce((s, set) => s + analyzeSet(set).value, 0);
+    if (sum < threshold) { newSets = []; h = hand.slice(); }
+  }
+  const nb = board.map(s => s.slice());
+  const ownStart = nb.length;
+  newSets.forEach(s => nb.push(s));
+  // 붙이기: 첫 등록 전이면 이번에 낸 자기 세트에만
+  if (level >= 1 && (melded || newSets.length > 0)) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const id of h.slice().sort((a, b) => isJoker(a) - isJoker(b))) {
+        for (let i = melded ? 0 : ownStart; i < nb.length; i++) {
+          if (analyzeSet(nb[i].concat(id)).ok) {
+            nb[i].push(id); h = h.filter(x => x !== id); changed = true; break;
+          }
+        }
+        if (changed) break;
+      }
+    }
+  }
+  const played = hand.filter(id => !h.includes(id));
+  return { board: nb, hand: h, played };
+}
+
+/* ---------- 사람 턴 판정 ---------- */
+function setKey(s){ return s.slice().sort((a, b) => a - b).join(','); }
+
+// 턴을 끝내도 되는지 검사합니다. 실패하면 이유를 돌려줍니다.
+function checkEndTurn(G, threshold){
+  const hand = G.hands[0];
+  const played = G.turnStart.hand.filter(id => !hand.includes(id));
+  if (played.length === 0) return { ok: false, reason: '패에서 한 장 이상 내야 턴을 끝낼 수 있어요. 낼 게 없으면 「뽑고 넘기기」를 누르세요.' };
+  for (const s of G.board) {
+    const a = analyzeSet(s);
+    if (!a.ok) return { ok: false, reason: a.reason, bad: s };
+  }
+  if (!G.melded[0]) {
+    const pts = meldPoints(G);
+    if (pts < threshold) return { ok: false, reason: `첫 등록은 내 타일로만 ${threshold}점 이상이어야 해요 (지금 ${pts}점)` };
+  }
+  return { ok: true, played };
+}
+
+// 이번 턴에 새로 만든(내 타일로만 된) 세트들의 점수 — 첫 등록 진행도
+function meldPoints(G){
+  const start = new Set(G.turnStart.hand);
+  let pts = 0;
+  for (const s of G.board) {
+    if (s.every(id => start.has(id))) {
+      const a = analyzeSet(s);
+      if (a.ok) pts += a.value;
+    }
+  }
+  return pts;
+}
+
+// 판에 낸 타일의 점수(조커는 대신한 숫자)
+function playedValue(board, played){
+  let sum = 0;
+  for (const s of board) {
+    const a = analyzeSet(s);
+    for (const id of s) if (played.includes(id)) sum += a.values[id];
+  }
+  return sum;
+}
+
+// 결과·모둠전 점수 계산
+function computeResult(G, winner){
+  const r = rules(G.mode);
+  const left = handPenalty(G.hands[0]);
+  const won = winner === 0;
+  const limit = r.GROUP_TURN_LIMIT;
+  const turnsLeft = won && G.kind === 'group' ? Math.max(0, limit - G.round) : 0;
+  const winBonus = won ? CONFIG.SCORE.WIN_BONUS : 0;
+  const turnBonus = turnsLeft * CONFIG.SCORE.PER_TURN_LEFT;
+  return {
+    winner, won,
+    played: G.playedSum, left, winBonus, turnsLeft, turnBonus,
+    score: G.playedSum - left + winBonus + turnBonus,
+    turnsUsed: G.round,
+    leftovers: G.hands.map(h => ({ count: h.length, pts: handPenalty(h) })),
+  };
+}
+/*LOGIC-END*/
+
+/* =====================================================================
+   저장 (이 태블릿 브라우저에만)
+   ===================================================================== */
+const SAVE_KEY = 'rummikub_save_v1', PREF_KEY = 'rummikub_pref_v1';
+function store(key, val){ try { val === null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+function load(key){ try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+
+let prefs = Object.assign({ kind: 'solo', mode: 'quick', cpus: 2, level: 0, sound: false }, load(PREF_KEY) || {});
+let G = null;                 // 현재 게임 상태
+let selected = new Set();     // 고른 타일
+let flashIds = [];            // 컴퓨터가 방금 낸 타일(반짝임)
+let cpuTimer = null;
+let lastCpuMsg = '';           // 컴퓨터가 마지막으로 한 일 (내 차례 알림에 붙여 보여줌)
+
+/* =====================================================================
+   효과음 (기본 꺼짐)
+   ===================================================================== */
+let audioCtx = null;
+function beep(freq = 520, dur = 0.07){
+  if (!prefs.sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; o.type = 'triangle';
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch (e) {}
+}
+
+/* =====================================================================
+   화면 공통
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+
+function tileEl(id, extra = ''){
+  const d = document.createElement('div');
+  d.className = 'tile ' + extra;
+  d.dataset.id = id;
+  if (isJoker(id)) {
+    d.classList.add('joker');
+    d.innerHTML = `<span class="num" style="color:${id === 104 ? '#ff5fa2' : '#1a1240'}">☺</span><span class="mark" style="color:#1a1240; opacity:.6; font-size:calc(var(--tw)*.2)">조커</span>`;
+  } else {
+    const c = CONFIG.COLORS[tileColor(id)];
+    d.innerHTML = `<span class="num" style="color:${c.hex}">${tileNum(id)}</span><span class="mark" style="color:${c.hex}">${c.mark}</span>`;
+  }
+  return d;
+}
+function tileHTML(id){ return tileEl(id).outerHTML; }
+function tileName(id){ return isJoker(id) ? '조커' : `${CONFIG.COLORS[tileColor(id)].name} ${tileNum(id)}`; }
+
+let toastTimer = null;
+function toast(msg, err = false, ms = 2600){
+  const t = $('toast');
+  t.innerHTML = ''; const sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+  t.className = 'toast show' + (err ? ' err' : '');
+  t.parentElement.classList.add('has-msg');          // 알림이 뜨는 동안 첫 등록 점수·내 패 수는 잠시 숨김
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); t.parentElement.classList.remove('has-msg'); }, ms);
+}
+
+function showModal(html, onMount){
+  const root = $('modalRoot');
+  root.innerHTML = `<div class="overlay"><div class="modal">${html}</div></div>`;
+  if (onMount) onMount(root.querySelector('.modal'));
+}
+function closeModal(){ $('modalRoot').innerHTML = ''; }
+
+function settingsText(s){
+  return `${s.mode === 'quick' ? '빠른 판' : '정식'} · 컴퓨터 ${s.cpus}명 · ${s.level ? '보통' : '쉬움'}`;
+}
+
+/* =====================================================================
+   시작 화면
+   ===================================================================== */
+function renderStart(){
+  document.title = CONFIG.APP_NAME;
+  $('appTitle').textContent = CONFIG.APP_NAME;
+  $('verLabel').textContent = CONFIG.APP_VERSION;
+  const logo = $('logoTiles'); logo.innerHTML = '';
+  [0 * 26 + 6, 1 * 26 + 6, 2 * 26 + 6, 104].forEach(id => logo.appendChild(tileEl(id)));
+
+  document.querySelectorAll('.toggle-row').forEach(row => {
+    const key = row.dataset.opt;
+    row.querySelectorAll('.tg').forEach(b => b.classList.toggle('on', String(prefs[key]) === b.dataset.v));
+  });
+  const groupMode = prefs.kind === 'group';
+  $('soloActions').classList.toggle('hidden', groupMode);
+  $('groupActions').classList.toggle('hidden', !groupMode);
+  const saved = load(SAVE_KEY);
+  $('resumeBtn').classList.toggle('hidden', !(saved && !saved.over));
+}
+
+document.querySelectorAll('.toggle-row').forEach(row => {
+  row.addEventListener('click', e => {
+    const b = e.target.closest('.tg'); if (!b) return;
+    const key = row.dataset.opt;
+    prefs[key] = (key === 'cpus' || key === 'level') ? Number(b.dataset.v) : b.dataset.v;
+    store(PREF_KEY, prefs);
+    renderStart();
+  });
+});
+
+// 저장된 판이 있으면 새로 시작하기 전에 확인
+function confirmOverwrite(then){
+  const saved = load(SAVE_KEY);
+  if (!(saved && !saved.over)) return then();
+  showModal(`<h2>새 게임을 시작할까요?</h2><p class="sub">진행 중이던 판이 사라져요.</p>
+    <div class="modal-actions"><button class="btn" id="mNo">취소</button><button class="btn primary" id="mYes">새로 시작</button></div>`,
+    m => { m.querySelector('#mNo').onclick = closeModal; m.querySelector('#mYes').onclick = () => { closeModal(); then(); }; });
+}
+
+$('newGameBtn').onclick = () => confirmOverwrite(() => {
+  startGame(makeCode(prefs.mode, prefs.cpus, prefs.level, Math.random()), 'solo');
+});
+$('resumeBtn').onclick = () => { const s = load(SAVE_KEY); if (s) { G = s; enterGame(); } };
+
+$('makeCodeBtn').onclick = () => {
+  const code = makeCode(prefs.mode, prefs.cpus, prefs.level, Math.random());
+  const digits = String(code).split('').map(d => `<span>${d}</span>`).join('');
+  showModal(`<h2>판 코드</h2><div class="code-big">${digits}</div>
+    <div class="summary">${settingsText(settingsFromCode(code))} · ${rules(prefs.mode).GROUP_TURN_LIMIT}턴</div>
+    <p class="sub">모둠원에게 이 코드를 알려 주세요.<br>모두 같은 판으로 대결해요.</p>
+    <div class="modal-actions"><button class="btn" id="mNo">취소</button><button class="btn primary" id="mYes">이 코드로 시작</button></div>`,
+    m => { m.querySelector('#mNo').onclick = closeModal; m.querySelector('#mYes').onclick = () => { closeModal(); confirmOverwrite(() => startGame(code, 'group')); }; });
+};
+
+$('enterCodeBtn').onclick = () => {
+  let typed = '';
+  showModal(`<h2>판 코드 입력</h2><div class="code-big" id="cDigits"></div><div class="summary" id="cSum"></div>
+    <div class="keypad" id="cPad">
+      ${[1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join('')}
+      <button class="fn" data-k="clr">지우기</button><button data-k="0">0</button><button class="fn" data-k="back">←</button>
+    </div>
+    <div class="modal-actions"><button class="btn" id="mNo">취소</button><button class="btn primary" id="mYes" disabled>시작</button></div>`,
+    m => {
+      const draw = () => {
+        m.querySelector('#cDigits').innerHTML = [0,1,2,3].map(i => `<span class="${typed[i] ? '' : 'empty'}">${typed[i] || ''}</span>`).join('');
+        const valid = typed.length === 4 && Number(typed) >= 1000;
+        m.querySelector('#cSum').textContent = typed.length === 4 ? (valid ? settingsText(settingsFromCode(Number(typed))) : '1000~9999 사이의 코드예요') : '';
+        m.querySelector('#mYes').disabled = !valid;
+      };
+      m.querySelector('#cPad').onclick = e => {
+        const k = e.target.closest('button'); if (!k) return;
+        const v = k.dataset.k;
+        if (v === 'clr') typed = ''; else if (v === 'back') typed = typed.slice(0, -1); else if (typed.length < 4) typed += v;
+        draw();
+      };
+      m.querySelector('#mNo').onclick = closeModal;
+      m.querySelector('#mYes').onclick = () => { const c = Number(typed); closeModal(); confirmOverwrite(() => startGame(c, 'group')); };
+      draw();
+    });
+};
+
+/* =====================================================================
+   게임 진행
+   ===================================================================== */
+function startGame(code, kind){
+  G = createGame(code, kind);
+  sortHand(false);              // 처음 패는 색별로 정리해서 보여줌 (판 결과에는 영향 없음)
+  store(SAVE_KEY, G);
+  enterGame();
+  toast(kind === 'group' ? `판 코드 ${code} · 내 차례부터 시작해요` : '내 차례부터 시작해요');
+}
+
+function enterGame(){
+  $('startScreen').classList.add('hidden');
+  $('gameScreen').classList.remove('hidden');
+  selected.clear();
+  render();
+  if (G.over) return showResult();
+  if (G.current !== 0) scheduleCpu();
+}
+
+function goHome(){
+  clearTimeout(cpuTimer);
+  closeModal();
+  $('gameScreen').classList.add('hidden');
+  $('startScreen').classList.remove('hidden');
+  renderStart();
+}
+
+function save(){ store(SAVE_KEY, G.over ? null : G); }
+function canAct(){ return G && !G.over && G.current === 0 && !$('modalRoot').innerHTML; }
+
+function beginHumanTurn(){
+  G.turnStart = { board: G.board.map(s => s.slice()), hand: G.hands[0].slice() };
+  selected.clear();
+}
+
+function nextTurn(){
+  if (G.over) return;
+  const n = G.hands.length;
+  if (G.passes >= n) return finish(lowestLeftover(), '더미가 바닥나 더 낼 수 있는 사람이 없어요');
+  G.current = (G.current + 1) % n;
+  if (G.current === 0) {
+    G.round++;
+    if (G.kind === 'group' && G.round > rules(G.mode).GROUP_TURN_LIMIT) {
+      G.round = rules(G.mode).GROUP_TURN_LIMIT;
+      return finish(-1, `${G.round}턴이 끝났어요`);
+    }
+    beginHumanTurn();
+  }
+  save();
+  render();
+  if (G.current !== 0) scheduleCpu();
+  else { toast(lastCpuMsg ? `${lastCpuMsg} · 내 차례예요` : '내 차례예요', false, 3200); lastCpuMsg = ''; }
+}
+
+function lowestLeftover(){
+  const pens = G.hands.map(handPenalty);
+  const min = Math.min(...pens);
+  const who = pens.map((p, i) => p === min ? i : -1).filter(i => i >= 0);
+  return who.length === 1 ? who[0] : -1;   // 동점이면 승자 없음
+}
+
+function finish(winner, why){
+  G.over = true;
+  $('toast').className = 'toast'; $('toast').parentElement.classList.remove('has-msg');
+  G.result = computeResult(G, winner);
+  G.result.why = why;
+  save();
+  render();
+  setTimeout(showResult, 500);
+}
+
+/* ---------- 사람의 조작 ---------- */
+function locate(id){
+  const hi = G.hands[0].indexOf(id);
+  if (hi >= 0) return { where: 'hand' };
+  for (let i = 0; i < G.board.length; i++) if (G.board[i].includes(id)) return { where: 'board', set: G.board[i] };
+  return null;
+}
+function wasOnBoard(id){ return G.turnStart.board.some(s => s.includes(id)); }
+
+// 타일들을 목적지로 옮깁니다. dest: {type:'set', set:배열} | {type:'new'} | {type:'hand'}
+function moveTiles(ids, dest){
+  ids = ids.filter(id => locate(id));
+  if (!ids.length) return;
+  if (!G.melded[0]) {
+    if (ids.some(wasOnBoard)) return toast('첫 등록 전에는 판에 있던 타일을 움직일 수 없어요', true);
+    if (dest.type === 'set' && dest.set.some(wasOnBoard)) return toast('첫 등록 전에는 내 타일로 새 세트만 만들 수 있어요', true);
+  }
+  if (dest.type === 'hand' && ids.some(wasOnBoard)) return toast('판에 있던 타일은 내 패로 가져올 수 없어요', true);
+  if (dest.type === 'set' && ids.every(id => dest.set.includes(id))) return;
+
+  // 원래 자리에서 빼기
+  G.hands[0] = G.hands[0].filter(id => !ids.includes(id));
+  G.board.forEach(s => { for (const id of ids) { const k = s.indexOf(id); if (k >= 0) s.splice(k, 1); } });
+  // 목적지에 넣기
+  if (dest.type === 'hand') G.hands[0].push(...ids);
+  else if (dest.type === 'new') G.board.push(ids.slice());
+  else dest.set.push(...ids);
+  G.board = G.board.filter(s => s.length > 0);
+
+  selected.clear();
+  beep(620);
+  save();
+  render();
+}
+
+$('undoBtn').onclick = () => {
+  if (!canAct()) return;
+  G.board = G.turnStart.board.map(s => s.slice());
+  G.hands[0] = G.turnStart.hand.slice();
+  selected.clear(); save(); render();
+  toast('이번 턴 시작 상태로 되돌렸어요');
+};
+
+function sortHand(byNum){
+  G.hands[0].sort((a, b) => {
+    if (isJoker(a) || isJoker(b)) return isJoker(a) - isJoker(b) || a - b;
+    return byNum ? (tileNum(a) - tileNum(b) || tileColor(a) - tileColor(b))
+                 : (tileColor(a) - tileColor(b) || tileNum(a) - tileNum(b));
+  });
+  save(); render();
+}
+$('sortColorBtn').onclick = () => { if (G && !G.over) sortHand(false); };
+$('sortNumBtn').onclick = () => { if (G && !G.over) sortHand(true); };
+
+$('drawBtn').onclick = () => {
+  if (!canAct()) return;
+  // 바꾼 것은 모두 되돌린 뒤 한 장 뽑기 (정식 규칙)
+  G.board = G.turnStart.board.map(s => s.slice());
+  G.hands[0] = G.turnStart.hand.slice();
+  if (G.pool.length) {
+    const id = G.pool.shift();
+    G.hands[0].push(id);
+    G.passes = 0;
+    flashIds = [id];
+    toast(`${tileName(id)}을(를) 뽑았어요`);
+  } else {
+    G.passes++;
+    toast('더미가 비어 있어 그냥 넘겨요');
+  }
+  beep(380);
+  nextTurn();
+};
+
+$('endTurnBtn').onclick = () => {
+  if (!canAct()) return;
+  const th = rules(G.mode).FIRST_MELD;
+  const chk = checkEndTurn(G, th);
+  if (!chk.ok) { toast(chk.reason, true, 3400); beep(200, 0.15); return; }
+  G.playedSum += playedValue(G.board, chk.played);
+  G.melded[0] = true;
+  G.passes = 0;
+  beep(760, 0.1);
+  if (G.hands[0].length === 0) return finish(0, '내 패를 모두 냈어요!');
+  nextTurn();
+};
+
+/* ---------- 컴퓨터 턴 ---------- */
+function scheduleCpu(){
+  clearTimeout(cpuTimer);
+  render();
+  cpuTimer = setTimeout(cpuTurn, CONFIG.CPU_DELAY_MS);
+}
+function cpuTurn(){
+  if (!G || G.over || G.current === 0) return;
+  const i = G.current;
+  const name = CONFIG.CPU_NAMES[i - 1];
+  const plan = cpuPlan(G.hands[i], G.board, G.melded[i], G.level, rules(G.mode).FIRST_MELD);
+  if (plan.played.length) {
+    G.board = plan.board;
+    G.hands[i] = plan.hand;
+    G.melded[i] = true;
+    G.passes = 0;
+    flashIds = plan.played.slice();
+    lastCpuMsg = `${name}이(가) ${plan.played.length}장을 냈어요`; toast(lastCpuMsg);
+    beep(500);
+    if (G.hands[i].length === 0) return finish(i, `${name}이(가) 패를 모두 냈어요`);
+  } else if (G.pool.length) {
+    G.hands[i].push(G.pool.shift());
+    G.passes = 0;
+    lastCpuMsg = `${name}이(가) 타일을 뽑았어요`; toast(lastCpuMsg);
+  } else {
+    G.passes++;
+    lastCpuMsg = `${name}이(가) 넘겼어요`; toast(lastCpuMsg);
+  }
+  nextTurn();
+}
+
+/* =====================================================================
+   게임 화면 그리기
+   ===================================================================== */
+function render(){
+  if (!G) return;
+  const myTurn = G.current === 0 && !G.over;
+  const startHand = new Set(G.turnStart.hand);
+  const meldLock = !G.melded[0];
+
+  // 상단
+  const players = $('players'); players.innerHTML = '';
+  for (let i = 1; i < G.hands.length; i++) {
+    const c = document.createElement('div');
+    c.className = 'sticker chip' + (G.current === i && !G.over ? ' active thinking' : '');
+    c.innerHTML = `<span class="nm-full">${CONFIG.CPU_NAMES[i - 1]}</span><span class="nm-short">컴${i}</span><span class="cnt"><i class="mini"></i>×${G.hands[i].length}</span>`;
+    players.appendChild(c);
+  }
+  $('poolStat').innerHTML = `<span class="pool-label">더미</span><b>${G.pool.length}</b>장`;
+  const showRound = G.kind === 'group';
+  $('roundStat').classList.toggle('hidden', !showRound);
+  if (showRound) $('roundStat').innerHTML = `<b>${G.round}/${rules(G.mode).GROUP_TURN_LIMIT}</b>턴`;
+  const flag = $('turnFlag');
+  flag.textContent = G.over ? '게임 끝' : myTurn ? '◀ 내 차례' : '기다리는 중';
+  flag.classList.toggle('wait', !myTurn);
+  $('soundBtn').textContent = prefs.sound ? '🔊' : '🔇';
+
+  // 판
+  const board = $('board'); board.innerHTML = '';
+  const hasSel = selected.size > 0;
+  G.board.forEach((s, idx) => {
+    const a = analyzeSet(s);
+    const box = document.createElement('div');
+    box.className = 'set' + (a.ok ? '' : ' invalid');
+    box.dataset.drop = 'set'; box.dataset.idx = idx;
+    a.order.forEach(id => {
+      let cls = '';
+      if (myTurn && startHand.has(id)) cls += ' new';
+      if (selected.has(id)) cls += ' selected';
+      if (flashIds.includes(id)) cls += ' flash';
+      if (meldLock && myTurn && wasOnBoard(id)) cls += ' locked';
+      box.appendChild(tileEl(id, cls));
+    });
+    if (hasSel && myTurn && ![...selected].every(id => s.includes(id))) {
+      const slot = document.createElement('div'); slot.className = 'slot'; slot.textContent = '+';
+      box.appendChild(slot);
+    }
+    board.appendChild(box);
+  });
+  if (myTurn) {
+    const ns = document.createElement('div');
+    ns.className = 'newset'; ns.dataset.drop = 'new';
+    ns.textContent = hasSel ? '+ 여기에 새 세트' : '+ 빈 곳에 놓아 새 세트';
+    board.appendChild(ns);
+  }
+  if (!G.board.length && !myTurn) {
+    const em = document.createElement('div'); em.className = 'empty-msg'; em.textContent = '아직 판에 놓인 타일이 없어요';
+    board.appendChild(em);
+  }
+
+  // 내 패
+  const rack = $('rack'); rack.innerHTML = '';
+  G.hands[0].forEach(id => {
+    let cls = '';
+    if (selected.has(id)) cls += ' selected';
+    if (flashIds.includes(id)) cls += ' flash';
+    rack.appendChild(tileEl(id, cls));
+  });
+
+  // 진행 정보
+  const th = rules(G.mode).FIRST_MELD;
+  const mi = $('meldInfo');
+  if (!G.melded[0] && myTurn) {
+    const pts = meldPoints(G);
+    mi.textContent = `첫 등록: 지금 놓은 점수 ${pts} / ${th}`;
+    mi.className = 'meld' + (pts >= th ? ' ok' : '');
+  } else if (myTurn) {
+    const n = G.turnStart.hand.filter(id => !G.hands[0].includes(id)).length;
+    mi.textContent = n ? `이번 턴에 낸 타일 ${n}장` : '판을 바꾸거나 타일을 내 보세요';
+    mi.className = 'meld ok';
+  } else { mi.textContent = ''; }
+  $('handInfo').textContent = `내 패 ${G.hands[0].length}장`;
+
+  ['undoBtn', 'drawBtn', 'endTurnBtn'].forEach(b => $(b).disabled = !myTurn);
+  ['sortColorBtn', 'sortNumBtn'].forEach(b => $(b).disabled = G.over);
+
+  if (flashIds.length) { const f = flashIds; setTimeout(() => { if (flashIds === f) flashIds = []; }, 1400); }
+}
+
+/* ---------- 드래그 + 탭 ---------- */
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const t = e.target.closest('#gameScreen .tile[data-id]');
+  if (!t || !canAct()) return;
+  drag = { id: Number(t.dataset.id), x: e.clientX, y: e.clientY, started: false, ghost: null, ids: null };
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.started) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 10) return;
+    drag.started = true;
+    drag.ids = selected.has(drag.id) ? [...selected] : [drag.id];
+    const g = document.createElement('div'); g.className = 'drag-ghost';
+    drag.ids.forEach(id => g.appendChild(tileEl(id)));
+    document.body.appendChild(g); drag.ghost = g;
+  }
+  drag.ghost.style.left = e.clientX + 'px';
+  drag.ghost.style.top = e.clientY + 'px';
+  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
+  const tg = dropElAt(e.clientX, e.clientY);
+  if (tg) tg.classList.add('target');
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.started) {
+    d.ghost.remove();
+    document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
+    const tg = dropElAt(e.clientX, e.clientY);
+    if (tg) moveTiles(d.ids, destOf(tg));
+    else render();
+  } else {
+    // 탭: 고르기/풀기
+    if (!G.melded[0] && wasOnBoard(d.id)) return toast('첫 등록 전에는 판에 있던 타일을 움직일 수 없어요', true);
+    selected.has(d.id) ? selected.delete(d.id) : selected.add(d.id);
+    beep(700, 0.04);
+    render();
+  }
+});
+document.addEventListener('pointercancel', () => {
+  if (drag && drag.ghost) drag.ghost.remove();
+  drag = null;
+  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
+});
+
+function dropElAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('[data-drop]') : null;
+}
+function destOf(el){
+  if (el.dataset.drop === 'set') return { type: 'set', set: G.board[Number(el.dataset.idx)] };
+  return { type: el.dataset.drop };
+}
+
+// 고른 타일이 있을 때 목적지를 탭하면 옮기기 (타일 자체를 탭한 경우는 고르기로 처리)
+document.addEventListener('click', e => {
+  if (!canAct() || !selected.size) return;
+  if (e.target.closest('.tile[data-id]')) return;
+  const tg = e.target.closest('[data-drop]');
+  if (tg) moveTiles([...selected], destOf(tg));
+});
+
+/* ---------- 메뉴·효과음·규칙 ---------- */
+$('soundBtn').onclick = () => { prefs.sound = !prefs.sound; store(PREF_KEY, prefs); render(); beep(660); };
+
+$('menuBtn').onclick = () => {
+  const codeLine = G ? `<p class="sub">판 코드 ${G.code} · ${settingsText(G)} · ${CONFIG.APP_VERSION}</p>` : '';
+  showModal(`<h2>메뉴</h2>${codeLine}<div class="menu-list">
+      <button class="btn primary" id="mResume">계속하기</button>
+      <button class="btn" id="mWords">용어 풀이 (등록·그룹·연속)</button>
+      <button class="btn" id="mRules">규칙 전체 보기</button>
+      <button class="btn" id="mHome">처음으로 (판은 저장돼요)</button></div>`,
+    m => {
+      m.querySelector('#mResume').onclick = closeModal;
+      m.querySelector('#mWords').onclick = showWords;
+      m.querySelector('#mRules').onclick = showRules;
+      m.querySelector('#mHome').onclick = goHome;
+    });
+};
+
+function ex(ids){ return `<div class="ex">${ids.map(tileHTML).join('')}</div>`; }
+
+// 용어 풀이 — 등록·그룹·연속·조커 (게임 중 상단 📖 버튼으로 언제든 열 수 있음)
+function wordsHTML(){
+  const th = G && !G.over ? rules(G.mode).FIRST_MELD : null;
+  const meldLine = th ? `이번 판은 첫 등록이 <b>${th}점 이상</b>이에요.`
+                      : `빠른 판은 ${CONFIG.QUICK.FIRST_MELD}점, 정식은 ${CONFIG.FULL.FIRST_MELD}점 이상이에요.`;
+  return `
+    <div class="rule"><p><span class="term t-meld">등록</span>내 패의 타일을 판에 내려놓는 것이에요.</p>
+      <p>맨 처음 하는 <b>첫 등록</b>은 내 타일로만 세트를 만들어 숫자 합이 기준 점수를 넘어야 해요. ${meldLine} 첫 등록 전에는 판에 있던 타일을 건드릴 수 없어요.</p></div>
+    <div class="rule"><p><span class="term t-group">그룹</span>같은 숫자, 서로 다른 색 3~4장</p>${ex([6, 26 + 6, 52 + 6])}</div>
+    <div class="rule"><p><span class="term t-run">연속</span>같은 색, 이어지는 숫자 3장 이상</p>${ex([26 + 2, 26 + 3, 26 + 4, 26 + 5])}</div>
+    <div class="rule"><p><span class="term t-joker">조커</span>어떤 타일이든 대신할 수 있어요</p>${ex([78 + 8, 104, 78 + 10])}</div>`;
+}
+function showWords(){
+  showModal(`<h2>용어 풀이</h2>${wordsHTML()}
+    <div class="modal-actions"><button class="btn primary" id="mOk">알겠어요</button></div>`,
+    m => m.querySelector('#mOk').onclick = closeModal);
+}
+$('wordBtn').onclick = showWords;
+
+function showRules(){
+  const q = CONFIG.QUICK, f = CONFIG.FULL, sc = CONFIG.SCORE;
+  showModal(`<h2>규칙</h2>
+    <div class="rule"><b>목표</b><p>내 패의 타일을 판에 모두 내려놓으면 이겨요.</p></div>
+    ${wordsHTML()}
+    <div class="rule"><b>판 바꾸기</b><p>첫 등록 뒤에는 판의 세트를 쪼개고 합쳐서 새로 짤 수 있어요. 턴이 끝날 때 판 위 세트가 모두 그룹이나 연속이어야 해요. 꼬이면 「되돌리기」!</p></div>
+    <div class="rule"><b>낼 게 없으면</b><p>「뽑고 넘기기」로 한 장을 가져가요.</p></div>
+    <div class="rule"><b>조작</b><p>타일을 끌어서 옮기거나, 타일을 탭해 고른 뒤(여러 장 가능) 놓을 곳(＋ 칸, 새 세트, 내 패)을 탭하세요.</p></div>
+    <div class="rule"><b>모둠전</b><p>같은 판 코드면 모두 같은 판이에요. 빠른 판 ${q.GROUP_TURN_LIMIT}턴, 정식 ${f.GROUP_TURN_LIMIT}턴 안에 겨뤄요.<br>
+      점수 = 낸 타일 합 − 남은 타일 합(조커 ${sc.JOKER_PENALTY}점) + 승리 ${sc.WIN_BONUS}점 + 남은 턴 × ${sc.PER_TURN_LEFT}점(이겼을 때)<br>동점이면 턴을 적게 쓴 사람이 이겨요.</p></div>
+    <div class="modal-actions"><button class="btn primary" id="mOk">닫기</button></div>`,
+    m => m.querySelector('#mOk').onclick = closeModal);
+}
+$('rulesBtnStart').onclick = showRules;
+
+/* ---------- 결과 ---------- */
+function showResult(){
+  const R = G.result; if (!R) return;
+  const title = R.won ? '승리! 🎉' : R.winner > 0 ? '아쉽게 졌어요' : '게임 끝';
+  const rows = G.hands.map((h, i) => {
+    const name = i === 0 ? '나' : CONFIG.CPU_NAMES[i - 1];
+    const win = R.winner === i ? ' 🏆' : '';
+    return `<tr class="${i === 0 ? 'me' : ''}"><td>${name}${win}</td><td>${R.leftovers[i].count}장</td><td>${R.leftovers[i].pts}점</td></tr>`;
+  }).join('');
+  let scoreBox = '';
+  if (G.kind === 'group') {
+    scoreBox = `<div class="score-box">
+      <div class="score-line"><span>낸 타일 합</span><b>+${R.played}</b></div>
+      <div class="score-line"><span>남은 타일 벌점</span><b>−${R.left}</b></div>
+      <div class="score-line"><span>승리 보너스</span><b>+${R.winBonus}</b></div>
+      <div class="score-line"><span>남은 턴 보너스 (${R.turnsLeft}턴 × ${CONFIG.SCORE.PER_TURN_LEFT})</span><b>+${R.turnBonus}</b></div>
+      <div class="score-line total"><span>모둠전 점수</span><b>${R.score}점</b></div>
+      <div class="score-meta"><span>판 코드 <b>${G.code}</b></span><span>${R.turnsUsed}턴 사용</span><span>${G.version}</span></div>
+    </div>`;
+  }
+  const again = G.kind === 'solo' ? `<button class="btn primary" id="mAgain">다시 하기</button>` : '';
+  showModal(`<h2>${title}</h2><p class="sub">${R.why || ''}</p>
+    <table class="res"><tr><th>플레이어</th><th>남은 타일</th><th>남은 점수</th></tr>${rows}</table>
+    ${scoreBox}
+    <div class="modal-actions"><button class="btn" id="mHome">처음으로</button>${again}</div>`,
+    m => {
+      m.querySelector('#mHome').onclick = goHome;
+      const a = m.querySelector('#mAgain');
+      if (a) a.onclick = () => { closeModal(); startGame(makeCode(G.mode, G.cpus, G.level, Math.random()), 'solo'); };
+    });
+}
+
+/* ---------- 시작 ---------- */
+renderStart();
+// 글꼴(Jua, Black Han Sans)을 못 받았으면 굵은 기본 글꼴로 대신
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    try { if (!document.fonts.check('20px "Black Han Sans"')) document.documentElement.classList.add('nofont'); } catch (e) {}
+  });
+}
+</script>
+</body>
+</html>
