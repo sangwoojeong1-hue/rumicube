@@ -134,12 +134,32 @@
   .stat{background:var(--grape-deep); color:var(--paper); border-color:var(--ink); gap:2px;}
   .stat .pool-label{margin-right:6px;}
   .stat b{font-family:var(--font-num); font-weight:400; font-size:17px;}
-  .turnflag{background:var(--sun); min-width:112px;}
+  .turnflag{background:var(--sun); min-width:112px; position:relative; overflow:hidden;}
   .turnflag.wait{background:var(--grape-deep); color:var(--paper);}
+  /* 턴 타이머: 내 차례 칩 안에 남은 초 + 아래쪽 줄어드는 막대 */
+  .turnflag .tf-short{display:none;}
+  .turnflag .sec{font-family:var(--font-num); font-weight:400; font-size:20px; min-width:2.2em; text-align:right; font-variant-numeric:tabular-nums;}
+  .turnflag .bar{position:absolute; left:0; bottom:0; height:5px; width:100%; background:var(--ink); transform-origin:left; transform:scaleX(var(--p,1)); transition:transform .25s linear;}
+  .turnflag.hurry{background:var(--pink); color:#fff; animation:hurry .5s ease-in-out infinite alternate;}
+  @keyframes hurry{from{transform:none;} to{transform:scale(1.06);}}
   .word-btn{background:var(--sky);}
 
+  .board-wrap{flex:1 1 0; min-height:0; position:relative; display:flex; flex-direction:column;}
+  /* 끄는 동안 판 위·아래 가장자리 표시: 여기에 손가락을 두면 판이 저절로 스크롤됨 */
+  .edge{
+    position:absolute; left:2.5px; right:2.5px; height:48px; z-index:4; pointer-events:none;
+    display:none; align-items:center; justify-content:center;
+  }
+  .edge span{
+    width:34px; height:24px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:var(--sun); color:var(--ink); border:2px solid var(--ink); font-size:12px; box-shadow:0 2px 0 var(--ink);
+  }
+  .edge.top{top:2.5px; border-radius:20px 20px 0 0; background:linear-gradient(rgba(255,210,63,.85), rgba(255,210,63,0));}
+  .edge.bottom{bottom:2.5px; border-radius:0 0 20px 20px; background:linear-gradient(rgba(255,210,63,0), rgba(255,210,63,.85));}
+  .edge.show{display:flex;}
+  .edge.active span{background:var(--pink); color:#fff; transform:scale(1.15);}
   .board{
-    flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:16px;
+    flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding:16px;
     display:flex; flex-wrap:wrap; align-content:flex-start; gap:14px 16px;
     background-color:var(--grape-deep);
     background-image:radial-gradient(rgba(255,255,255,.07) 1.2px, transparent 1.4px); background-size:18px 18px;
@@ -253,6 +273,7 @@
     .stat .pool-label, .word-btn .lbl{display:none;}
     .turnflag{min-width:0;}
   }
+  @media (max-width:1000px){ .turnflag .tf-lbl{display:none;} .turnflag .tf-short{display:inline;} }
   @media (max-width:820px){  /* 세로 화면: 버튼을 3칸·2칸 두 줄로 가지런히 */
     .actions{grid-template-columns:repeat(6,1fr);}
     .actions .spacer{display:none;}
@@ -334,7 +355,11 @@
     <button class="sticker icon-btn" id="soundBtn" aria-label="효과음">🔇</button>
   </div>
 
-  <div class="board" id="board"></div>
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="edge top" id="edgeTop"><span>▲</span></div>
+    <div class="edge bottom" id="edgeBottom"><span>▼</span></div>
+  </div>
 
   <div class="tray">
     <div class="tray-info">
@@ -362,16 +387,19 @@
    ===================================================================== */
 const CONFIG = {
   APP_NAME: '루미큐브',        // 화면에 보이는 앱 이름 (바꿀 때 여기만 고치면 됨)
-  APP_VERSION: 'v1.1',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
+  APP_VERSION: 'v1.2',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
 
   // 빠른 판 / 정식 규칙
-  QUICK: { START_TILES: 10, FIRST_MELD: 20, GROUP_TURN_LIMIT: 15 },
-  FULL:  { START_TILES: 14, FIRST_MELD: 30, GROUP_TURN_LIMIT: 25 },
+  // TURN_SECONDS: 사람 한 턴의 제한 시간(초). 다 되면 바꾼 것을 되돌리고 1장 뽑은 뒤 차례를 넘깁니다.
+  QUICK: { START_TILES: 10, FIRST_MELD: 20, GROUP_TURN_LIMIT: 15, TURN_SECONDS: 60 },
+  FULL:  { START_TILES: 14, FIRST_MELD: 30, GROUP_TURN_LIMIT: 25, TURN_SECONDS: 90 },
 
   // 모둠전 점수 공식: 낸 합 − 남은 합 + 승리 보너스 + 남은 턴 × 턴당 점수
   SCORE: { WIN_BONUS: 50, PER_TURN_LEFT: 5, JOKER_PENALTY: 30 },
 
   CPU_DELAY_MS: 1000,           // 컴퓨터 한 명이 두는 데 걸리는 연출 시간(ms)
+  HURRY_SECONDS: 10,            // 남은 시간이 이만큼 이하면 내 차례 칩이 핑크로 깜빡임
+  AUTO_SCROLL_EDGE: 64,         // 타일을 끌 때 판 가장자리에서 이 거리(px) 안이면 자동 스크롤
 
   // 타일 색: 색약 학생도 구분할 수 있게 기호를 함께 씁니다.
   COLORS: [
@@ -801,6 +829,7 @@ $('enterCodeBtn').onclick = () => {
 function startGame(code, kind){
   G = createGame(code, kind);
   sortHand(false);              // 처음 패는 색별로 정리해서 보여줌 (판 결과에는 영향 없음)
+  G.turnStart.hand = G.hands[0].slice();
   store(SAVE_KEY, G);
   enterGame();
   toast(kind === 'group' ? `판 코드 ${code} · 내 차례부터 시작해요` : '내 차례부터 시작해요');
@@ -813,10 +842,12 @@ function enterGame(){
   render();
   if (G.over) return showResult();
   if (G.current !== 0) scheduleCpu();
+  else startTurnTimer();          // 이어하기로 돌아오면 그 턴 시간은 처음부터 다시 셈
 }
 
 function goHome(){
   clearTimeout(cpuTimer);
+  stopTurnTimer();
   closeModal();
   $('gameScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
@@ -825,6 +856,15 @@ function goHome(){
 
 function save(){ store(SAVE_KEY, G.over ? null : G); }
 function canAct(){ return G && !G.over && G.current === 0 && !$('modalRoot').innerHTML; }
+
+// 이번 턴 시작 상태로 되돌리기. 패의 정렬 순서는 지금 화면 순서를 유지하고, 판에서 돌아온 타일만 뒤에 붙임
+function restoreTurnStart(){
+  G.board = G.turnStart.board.map(s => s.slice());
+  const start = new Set(G.turnStart.hand);
+  const kept = G.hands[0].filter(id => start.has(id));
+  const back = G.turnStart.hand.filter(id => !kept.includes(id));
+  G.hands[0] = kept.concat(back);
+}
 
 function beginHumanTurn(){
   G.turnStart = { board: G.board.map(s => s.slice()), hand: G.hands[0].slice() };
@@ -846,8 +886,42 @@ function nextTurn(){
   }
   save();
   render();
-  if (G.current !== 0) scheduleCpu();
-  else { toast(lastCpuMsg ? `${lastCpuMsg} · 내 차례예요` : '내 차례예요', false, 3200); lastCpuMsg = ''; }
+  if (G.current !== 0) { stopTurnTimer(); scheduleCpu(); }
+  else { startTurnTimer(); toast(lastCpuMsg ? `${lastCpuMsg} · 내 차례예요` : '내 차례예요', false, 3200); lastCpuMsg = ''; }
+}
+
+/* ---------- 턴 타이머 ---------- */
+// 시간은 판 상태에 저장하지 않습니다(이어하기 때 다시 셈). 모든 사람이 같은 시간을 받으므로 모둠전 공정성에는 영향 없음.
+let turnDeadline = 0, turnTick = null, lastBeepSec = -1;
+function turnSeconds(){ return rules(G.mode).TURN_SECONDS; }
+function startTurnTimer(){
+  stopTurnTimer();
+  if (!G || G.over || G.current !== 0) return;
+  turnDeadline = Date.now() + turnSeconds() * 1000;
+  lastBeepSec = -1;
+  turnTick = setInterval(tickTurnTimer, 200);
+  tickTurnTimer();
+}
+function stopTurnTimer(){ clearInterval(turnTick); turnTick = null; turnDeadline = 0; }
+function secondsLeft(){ return Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000)); }
+function tickTurnTimer(){
+  if (!turnDeadline || !G || G.over || G.current !== 0) return stopTurnTimer();
+  const left = secondsLeft();
+  const flag = $('turnFlag');
+  const sec = flag.querySelector('.sec'), bar = flag.querySelector('.bar');
+  if (sec) sec.textContent = left;
+  if (bar) bar.style.setProperty('--p', Math.max(0, (turnDeadline - Date.now()) / (turnSeconds() * 1000)));
+  const hurry = left <= CONFIG.HURRY_SECONDS;
+  flag.classList.toggle('hurry', hurry);
+  if (hurry && left <= 5 && left > 0 && left !== lastBeepSec) { lastBeepSec = left; beep(880, 0.05); }
+  if (left <= 0) turnTimeout();
+}
+// 시간 초과: 이번 턴에 바꾼 것을 모두 되돌리고 1장 뽑은 뒤 차례를 넘깁니다(「뽑고 넘기기」와 같은 결과).
+function turnTimeout(){
+  stopTurnTimer();
+  cancelDrag();
+  if ($('modalRoot').innerHTML) closeModal();   // 용어·메뉴 팝업을 보던 중이어도 닫고 진행
+  drawAndPass(true);
 }
 
 function lowestLeftover(){
@@ -859,6 +933,7 @@ function lowestLeftover(){
 
 function finish(winner, why){
   G.over = true;
+  stopTurnTimer();
   $('toast').className = 'toast'; $('toast').parentElement.classList.remove('has-msg');
   G.result = computeResult(G, winner);
   G.result.why = why;
@@ -904,8 +979,7 @@ function moveTiles(ids, dest){
 
 $('undoBtn').onclick = () => {
   if (!canAct()) return;
-  G.board = G.turnStart.board.map(s => s.slice());
-  G.hands[0] = G.turnStart.hand.slice();
+  restoreTurnStart();
   selected.clear(); save(); render();
   toast('이번 턴 시작 상태로 되돌렸어요');
 };
@@ -921,24 +995,26 @@ function sortHand(byNum){
 $('sortColorBtn').onclick = () => { if (G && !G.over) sortHand(false); };
 $('sortNumBtn').onclick = () => { if (G && !G.over) sortHand(true); };
 
-$('drawBtn').onclick = () => {
-  if (!canAct()) return;
-  // 바꾼 것은 모두 되돌린 뒤 한 장 뽑기 (정식 규칙)
-  G.board = G.turnStart.board.map(s => s.slice());
-  G.hands[0] = G.turnStart.hand.slice();
+// 바꾼 것은 모두 되돌린 뒤 한 장 뽑고 차례 넘기기 — 「뽑고 넘기기」 버튼과 시간 초과가 함께 씀
+function drawAndPass(timeout){
+  stopTurnTimer();
+  restoreTurnStart();
+  selected.clear();
+  const head = timeout ? '⏰ 시간 초과! 바꾼 것은 되돌리고 ' : '';
   if (G.pool.length) {
     const id = G.pool.shift();
     G.hands[0].push(id);
     G.passes = 0;
     flashIds = [id];
-    toast(`${tileName(id)}을(를) 뽑았어요`);
+    toast(`${head}${tileName(id)}을(를) 뽑았어요`, timeout, timeout ? 3400 : 2600);
   } else {
     G.passes++;
-    toast('더미가 비어 있어 그냥 넘겨요');
+    toast(timeout ? '⏰ 시간 초과! 더미가 비어 있어 그냥 넘겨요' : '더미가 비어 있어 그냥 넘겨요', timeout);
   }
-  beep(380);
+  beep(timeout ? 240 : 380, timeout ? 0.2 : 0.07);
   nextTurn();
-};
+}
+$('drawBtn').onclick = () => { if (canAct()) drawAndPass(false); };
 
 $('endTurnBtn').onclick = () => {
   if (!canAct()) return;
@@ -1006,7 +1082,13 @@ function render(){
   $('roundStat').classList.toggle('hidden', !showRound);
   if (showRound) $('roundStat').innerHTML = `<b>${G.round}/${rules(G.mode).GROUP_TURN_LIMIT}</b>턴`;
   const flag = $('turnFlag');
-  flag.textContent = G.over ? '게임 끝' : myTurn ? '◀ 내 차례' : '기다리는 중';
+  if (myTurn) {
+    const left = turnDeadline ? secondsLeft() : turnSeconds();
+    if (!flag.querySelector('.sec')) flag.innerHTML = `<span class="tf-lbl">◀ 내 차례</span><span class="tf-short">⏱</span><span class="sec">${left}</span><i class="bar"></i>`;
+  } else {
+    flag.textContent = G.over ? '게임 끝' : '기다리는 중';
+    flag.classList.remove('hurry');
+  }
   flag.classList.toggle('wait', !myTurn);
   $('soundBtn').textContent = prefs.sound ? '🔊' : '🔇';
 
@@ -1088,17 +1170,81 @@ document.addEventListener('pointermove', e => {
     const g = document.createElement('div'); g.className = 'drag-ghost';
     drag.ids.forEach(id => g.appendChild(tileEl(id)));
     document.body.appendChild(g); drag.ghost = g;
+    startAutoScroll();
   }
+  drag.px = e.clientX; drag.py = e.clientY;
   drag.ghost.style.left = e.clientX + 'px';
   drag.ghost.style.top = e.clientY + 'px';
-  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
-  const tg = dropElAt(e.clientX, e.clientY);
-  if (tg) tg.classList.add('target');
+  markTarget();
   e.preventDefault();
 }, { passive: false });
+
+function markTarget(){
+  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
+  if (!drag || !drag.started) return;
+  const tg = dropElAt(drag.px, drag.py);
+  if (tg) tg.classList.add('target');
+}
+
+/* ---------- 끄는 동안 가장자리 자동 스크롤 (판·내 패 창) ----------
+   손가락이 스크롤 영역의 위/아래 가장자리 근처에 0.2초 이상 머물면 그 방향으로 스크롤합니다.
+   가장자리에 가까울수록 빠르고, 판 바깥으로 살짝 벗어나도(30px) 계속 스크롤합니다.
+   (판을 가로질러 지나가기만 할 때 휙 스크롤되지 않도록 잠깐 머무는 시간을 둠) */
+let scrollRAF = null;
+function startAutoScroll(){
+  cancelAnimationFrame(scrollRAF);
+  const zones = [{ el: $('board'), dwell: 0, dir: 0 }, { el: $('rack'), dwell: 0, dir: 0 }];
+  let last = performance.now();
+  const step = now => {
+    if (!drag || !drag.started) return hideEdges();
+    const dt = Math.min(50, now - last); last = now;
+    const E = CONFIG.AUTO_SCROLL_EDGE, OUT = 30;
+    let boardDir = 0;
+    for (const z of zones) {
+      const el = z.el, r = el.getBoundingClientRect();
+      const max = el.scrollHeight - el.clientHeight;
+      let dir = 0, depth = 0;
+      if (max > 1 && drag.px >= r.left && drag.px <= r.right) {
+        if (drag.py < r.top + E && drag.py > r.top - OUT && el.scrollTop > 0) { dir = -1; depth = (r.top + E - drag.py) / E; }
+        else if (drag.py > r.bottom - E && drag.py < r.bottom + OUT && el.scrollTop < max) { dir = 1; depth = (drag.py - (r.bottom - E)) / E; }
+      }
+      if (dir !== z.dir) { z.dir = dir; z.dwell = 0; }
+      if (dir) {
+        z.dwell += dt;
+        if (z.dwell > 200) {
+          const speed = 3 + 9 * Math.min(1, depth);       // 한 프레임에 3~12px (너무 빠르면 놓을 곳을 지나침)
+          el.scrollTop += dir * speed * dt / 16;
+          markTarget();
+        }
+      }
+      if (el.id === 'board') boardDir = z.dwell > 200 ? dir : 0;
+    }
+    showEdges(boardDir);
+    scrollRAF = requestAnimationFrame(step);
+  };
+  scrollRAF = requestAnimationFrame(step);
+}
+function showEdges(activeDir){
+  const b = $('board'), max = b.scrollHeight - b.clientHeight;
+  $('edgeTop').classList.toggle('show', max > 1 && b.scrollTop > 0);
+  $('edgeBottom').classList.toggle('show', max > 1 && b.scrollTop < max - 1);
+  $('edgeTop').classList.toggle('active', activeDir === -1);
+  $('edgeBottom').classList.toggle('active', activeDir === 1);
+}
+function hideEdges(){
+  cancelAnimationFrame(scrollRAF);
+  ['edgeTop', 'edgeBottom'].forEach(id => $(id).classList.remove('show', 'active'));
+}
+function cancelDrag(){
+  if (drag && drag.ghost) drag.ghost.remove();
+  drag = null;
+  hideEdges();
+  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
+}
 document.addEventListener('pointerup', e => {
   if (!drag) return;
   const d = drag; drag = null;
+  hideEdges();
   if (d.started) {
     d.ghost.remove();
     document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
@@ -1113,11 +1259,7 @@ document.addEventListener('pointerup', e => {
     render();
   }
 });
-document.addEventListener('pointercancel', () => {
-  if (drag && drag.ghost) drag.ghost.remove();
-  drag = null;
-  document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
-});
+document.addEventListener('pointercancel', cancelDrag);
 
 function dropElAt(x, y){
   const el = document.elementFromPoint(x, y);
@@ -1182,7 +1324,8 @@ function showRules(){
     ${wordsHTML()}
     <div class="rule"><b>판 바꾸기</b><p>첫 등록 뒤에는 판의 세트를 쪼개고 합쳐서 새로 짤 수 있어요. 턴이 끝날 때 판 위 세트가 모두 그룹이나 연속이어야 해요. 꼬이면 「되돌리기」!</p></div>
     <div class="rule"><b>낼 게 없으면</b><p>「뽑고 넘기기」로 한 장을 가져가요.</p></div>
-    <div class="rule"><b>조작</b><p>타일을 끌어서 옮기거나, 타일을 탭해 고른 뒤(여러 장 가능) 놓을 곳(＋ 칸, 새 세트, 내 패)을 탭하세요.</p></div>
+    <div class="rule"><b>시간 제한</b><p>한 턴은 빠른 판 ${q.TURN_SECONDS}초, 정식 ${f.TURN_SECONDS}초예요. 시간이 다 되면 이번 턴에 바꾼 것은 모두 되돌리고 한 장을 뽑아요.</p></div>
+    <div class="rule"><b>조작</b><p>타일을 끌어서 옮기거나, 타일을 탭해 고른 뒤(여러 장 가능) 놓을 곳(＋ 칸, 새 세트, 내 패)을 탭하세요. 판이 꽉 찼을 때는 끄는 채로 판의 위·아래 가장자리(▲▼)에 손가락을 잠깐 두면 판이 저절로 움직여요.</p></div>
     <div class="rule"><b>모둠전</b><p>같은 판 코드면 모두 같은 판이에요. 빠른 판 ${q.GROUP_TURN_LIMIT}턴, 정식 ${f.GROUP_TURN_LIMIT}턴 안에 겨뤄요.<br>
       점수 = 낸 타일 합 − 남은 타일 합(조커 ${sc.JOKER_PENALTY}점) + 승리 ${sc.WIN_BONUS}점 + 남은 턴 × ${sc.PER_TURN_LEFT}점(이겼을 때)<br>동점이면 턴을 적게 쓴 사람이 이겨요.</p></div>
     <div class="modal-actions"><button class="btn primary" id="mOk">닫기</button></div>`,
