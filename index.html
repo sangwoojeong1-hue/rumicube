@@ -31,6 +31,7 @@
   html,body{margin:0; height:100%; overflow:hidden;}
   body{
     font-family:var(--font-ui); color:var(--paper);
+    font-synthesis:none;   /* Jua·Black Han Sans는 굵기가 하나뿐 — 브라우저가 억지로 굵게 만들면 글자가 뭉개짐 */
     background-color:var(--grape);
     background-image:radial-gradient(rgba(255,255,255,.10) 1.3px, transparent 1.5px);
     background-size:22px 22px;
@@ -124,13 +125,15 @@
   }
   button.sticker:active{transform:translateY(2px); box-shadow:0 1px 0 var(--ink);}
   .icon-btn{width:var(--ctl-h); padding:0; font-size:21px;}
+  /* 일시정지 아이콘: 기기마다 ⏸ 글자 모양이 달라서 막대 두 개로 직접 그림 */
+  .pz{display:block; width:14px; height:16px; border-left:4.5px solid var(--ink); border-right:4.5px solid var(--ink); border-radius:1px;}
   .players{display:flex; gap:8px; flex:1; min-width:0; overflow:hidden;}
   .chip .cnt{display:flex; align-items:center; gap:4px; font-family:var(--font-num); font-size:17px;}
   .chip .mini{width:12px; height:16px; border-radius:3px; background:var(--grape); display:inline-block;}
   .chip.active{background:var(--pink); color:#fff;}
   .chip.active .mini{background:#fff;}
   .nm-short{display:none;}
-  .chip.thinking .cnt::after{content:"생각 중…"; font-family:var(--font-ui); font-size:14px; margin-left:4px;}
+  .chip.thinking .cnt::after{animation:think 1.2s steps(1) infinite; content:"생각 중…"; font-family:var(--font-ui); font-size:14px; margin-left:4px;}
   .stat{background:var(--grape-deep); color:var(--paper); border-color:var(--ink); gap:2px;}
   .stat .pool-label{margin-right:6px;}
   .stat b{font-family:var(--font-num); font-weight:400; font-size:17px;}
@@ -141,6 +144,7 @@
   .turnflag .sec{font-family:var(--font-num); font-weight:400; font-size:20px; min-width:2.2em; text-align:right; font-variant-numeric:tabular-nums;}
   .turnflag .bar{position:absolute; left:0; bottom:0; height:5px; width:100%; background:var(--ink); transform-origin:left; transform:scaleX(var(--p,1)); transition:transform .25s linear;}
   .turnflag.hurry{background:var(--pink); color:#fff; animation:hurry .5s ease-in-out infinite alternate;}
+  @keyframes think{0%{content:"생각 중.";} 33%{content:"생각 중..";} 66%{content:"생각 중…";}}
   @keyframes hurry{from{transform:none;} to{transform:scale(1.06);}}
   .word-btn{background:var(--sky);}
 
@@ -166,15 +170,17 @@
     border:2.5px solid var(--ink); border-radius:22px; box-shadow:inset 0 5px 0 rgba(0,0,0,.22);
   }
   .set{
-    display:flex; gap:4px; padding:8px 8px 10px; border-radius:15px; min-height:calc(var(--th) + 20px);
+    position:relative; display:flex; gap:4px; padding:8px 8px 10px; border-radius:15px; min-height:calc(var(--th) + 20px);
     background:rgba(255,255,255,.09); border:2.5px solid transparent; align-items:center;
   }
   .set.invalid{border-color:var(--danger); background:rgba(255,77,94,.2);}
   .set.target, .newset.target{border-color:var(--sun); border-style:solid; background:rgba(255,210,63,.18);}
+  /* 타일을 골랐을 때: 판 배열은 그대로 두고, 놓을 수 있는 세트에 점선 테두리 + 모서리 ＋ 배지만 표시 */
+  .set.can-drop{border-color:var(--sun); border-style:dashed; cursor:pointer;}
   .slot{
-    width:var(--tw); height:var(--th); border-radius:calc(var(--tw)*.18);
-    border:2.5px dashed var(--sun); color:var(--sun);
-    display:flex; align-items:center; justify-content:center; font-family:var(--font-num); font-size:calc(var(--tw)*.5); cursor:pointer;
+    position:absolute; top:-11px; right:-11px; z-index:2; width:28px; height:28px; border-radius:50%;
+    background:var(--sun); color:var(--ink); border:2.5px solid var(--ink); box-shadow:0 2px 0 var(--ink);
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-num); font-size:18px; line-height:1; cursor:pointer;
   }
   .newset{
     min-width:calc(var(--tw)*3 + 24px); min-height:calc(var(--th) + 20px); padding:8px 16px;
@@ -195,6 +201,9 @@
     box-shadow:inset 0 0 0 2px rgba(255,255,255,.08);
   }
   .rack.target{border-color:var(--sun);}
+  .rack{position:relative;}
+  /* 내 패 안에서 끌 때 끼워 넣을 자리 표시 */
+  .ins-mark{position:absolute; width:5px; border-radius:3px; background:var(--pink); box-shadow:0 0 0 2px var(--ink); pointer-events:none; z-index:3; display:none;}
   .actions{display:grid; grid-template-columns:repeat(3, auto) 1fr repeat(2, auto); gap:10px; align-items:center;}
   .actions .spacer{min-width:0;}
 
@@ -211,6 +220,16 @@
   @media (max-width:820px){ .toast{font-size:15px;} }
 
   /* ---------- 팝업 ---------- */
+  /* 일시정지: 판·패가 보이지 않게 완전히 덮음 */
+  .overlay.pause{background-color:var(--grape); background-image:radial-gradient(rgba(255,255,255,.10) 1.3px, transparent 1.5px); background-size:22px 22px;}
+  .overlay.pause .modal{text-align:center; width:min(420px,100%);}
+  .overlay.pause h2{font-size:40px;}
+  /* 남은 5초: 화면 테두리가 붉게 깜빡임 (터치는 막지 않음) */
+  .alarm{position:fixed; inset:0; z-index:60; pointer-events:none; opacity:0;
+    box-shadow:inset 0 0 0 10px var(--danger), inset 0 0 90px 30px rgba(255,77,94,.65);}
+  .alarm.on{animation:alarm .5s ease-in-out infinite alternate;}
+  @keyframes alarm{from{opacity:.15;} to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){ .alarm.on{animation:none; opacity:.8;} }
   .overlay{position:fixed; inset:0; z-index:100; background:rgba(26,18,64,.6); display:flex; align-items:center; justify-content:center; padding:16px;}
   .modal{
     width:min(520px,100%); max-height:92vh; overflow-y:auto; border-radius:24px; padding:24px 26px;
@@ -268,7 +287,7 @@
     .tg{height:40px;}
     .btn.big{height:52px; font-size:20px;}
   }
-  @media (max-width:900px){
+  @media (max-width:1000px){
     .nm-full{display:none;} .nm-short{display:inline;}
     .stat .pool-label, .word-btn .lbl{display:none;}
     .turnflag{min-width:0;}
@@ -281,14 +300,14 @@
     #undoBtn, #sortColorBtn, #sortNumBtn{grid-column:span 2;}
     #drawBtn, #endTurnBtn{grid-column:span 3;}
   }
-  @media (max-width:700px){  /* 좁은 세로 화면: 컴퓨터 칩을 두 번째 줄로 */
+  @media (max-width:860px){  /* 세로 화면: 컴퓨터 칩을 두 번째 줄로 */
     .topbar{flex-wrap:wrap;}
-    #menuBtn{margin-right:auto;}
+    #pauseBtn{margin-right:auto;}
     .players{order:10; flex-basis:100%;}
     .nm-full{display:inline;} .nm-short{display:none;}
   }
   /* 인터넷이 없어 글꼴을 못 받았을 때: 기본 글꼴을 굵게 써서 분위기를 유지 */
-  .nofont body, .nofont button{font-weight:700;}
+  .nofont body, .nofont button{font-weight:700; font-synthesis:weight;}
   .nofont .tile .num, .nofont .logo-title, .nofont .modal h2, .nofont .code-big span, .nofont .keypad button,
   .nofont .chip .cnt, .nofont .stat b, .nofont .score-line b, .nofont .slot{font-weight:900;}
   @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
@@ -347,6 +366,7 @@
 <div id="gameScreen" class="hidden">
   <div class="topbar">
     <button class="sticker icon-btn" id="menuBtn" aria-label="메뉴">≡</button>
+    <button class="sticker icon-btn" id="pauseBtn" aria-label="일시정지"><i class="pz"></i></button>
     <div class="players" id="players"></div>
     <div class="sticker stat" id="poolStat"></div>
     <div class="sticker stat hidden" id="roundStat"></div>
@@ -380,6 +400,7 @@
 </div>
 
 <div id="modalRoot"></div>
+<div class="alarm" id="alarm" aria-hidden="true"></div>
 
 <script>
 /* =====================================================================
@@ -387,7 +408,7 @@
    ===================================================================== */
 const CONFIG = {
   APP_NAME: '루미큐브',        // 화면에 보이는 앱 이름 (바꿀 때 여기만 고치면 됨)
-  APP_VERSION: 'v1.2',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
+  APP_VERSION: 'v1.4',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
 
   // 빠른 판 / 정식 규칙
   // TURN_SECONDS: 사람 한 턴의 제한 시간(초). 다 되면 바꾼 것을 되돌리고 1장 뽑은 뒤 차례를 넘깁니다.
@@ -397,8 +418,11 @@ const CONFIG = {
   // 모둠전 점수 공식: 낸 합 − 남은 합 + 승리 보너스 + 남은 턴 × 턴당 점수
   SCORE: { WIN_BONUS: 50, PER_TURN_LEFT: 5, JOKER_PENALTY: 30 },
 
-  CPU_DELAY_MS: 1000,           // 컴퓨터 한 명이 두는 데 걸리는 연출 시간(ms)
+  // 컴퓨터가 '생각하는' 시간(ms). 컴퓨터는 곧바로 수를 정하지만, 사람이 판을 보고 생각할 수 있도록 일부러 기다립니다.
+  // 뽑기만 할 때는 짧게, 낼 때는 내는 장수가 많을수록 길게. 결과(판)에는 영향 없음.
+  CPU_THINK: { DRAW_MS: 2500, PLAY_MS: 3000, PER_TILE_MS: 400, MAX_MS: 6000, JITTER_MS: 600 },
   HURRY_SECONDS: 10,            // 남은 시간이 이만큼 이하면 내 차례 칩이 핑크로 깜빡임
+  ALARM_SECONDS: 5,             // 남은 시간이 이만큼 이하면 화면 전체가 붉게 깜빡임
   AUTO_SCROLL_EDGE: 64,         // 타일을 끌 때 판 가장자리에서 이 거리(px) 안이면 자동 스크롤
 
   // 타일 색: 색약 학생도 구분할 수 있게 기호를 함께 씁니다.
@@ -730,9 +754,9 @@ function toast(msg, err = false, ms = 2600){
   toastTimer = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); t.parentElement.classList.remove('has-msg'); }, ms);
 }
 
-function showModal(html, onMount){
+function showModal(html, onMount, kind){
   const root = $('modalRoot');
-  root.innerHTML = `<div class="overlay"><div class="modal">${html}</div></div>`;
+  root.innerHTML = `<div class="overlay ${kind || ''}"><div class="modal">${html}</div></div>`;
   if (onMount) onMount(root.querySelector('.modal'));
 }
 function closeModal(){ $('modalRoot').innerHTML = ''; }
@@ -848,6 +872,7 @@ function enterGame(){
 function goHome(){
   clearTimeout(cpuTimer);
   stopTurnTimer();
+  paused = false;
   closeModal();
   $('gameScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
@@ -855,7 +880,8 @@ function goHome(){
 }
 
 function save(){ store(SAVE_KEY, G.over ? null : G); }
-function canAct(){ return G && !G.over && G.current === 0 && !$('modalRoot').innerHTML; }
+function canAct(){ return G && !G.over && G.current === 0 && !paused && !$('modalRoot').innerHTML; }
+function canReorder(){ return G && !G.over && !paused && !$('modalRoot').innerHTML; }
 
 // 이번 턴 시작 상태로 되돌리기. 패의 정렬 순서는 지금 화면 순서를 유지하고, 판에서 돌아온 타일만 뒤에 붙임
 function restoreTurnStart(){
@@ -894,15 +920,44 @@ function nextTurn(){
 // 시간은 판 상태에 저장하지 않습니다(이어하기 때 다시 셈). 모든 사람이 같은 시간을 받으므로 모둠전 공정성에는 영향 없음.
 let turnDeadline = 0, turnTick = null, lastBeepSec = -1;
 function turnSeconds(){ return rules(G.mode).TURN_SECONDS; }
-function startTurnTimer(){
+function startTurnTimer(ms){
   stopTurnTimer();
   if (!G || G.over || G.current !== 0) return;
-  turnDeadline = Date.now() + turnSeconds() * 1000;
+  turnDeadline = Date.now() + (ms || turnSeconds() * 1000);   // ms: 일시정지에서 돌아올 때 남아 있던 시간
   lastBeepSec = -1;
   turnTick = setInterval(tickTurnTimer, 200);
   tickTurnTimer();
 }
-function stopTurnTimer(){ clearInterval(turnTick); turnTick = null; turnDeadline = 0; }
+function stopTurnTimer(){ clearInterval(turnTick); turnTick = null; turnDeadline = 0; setAlarm(false); }
+// 남은 시간 경고: 화면 가장자리가 붉게 깜빡임
+function setAlarm(on){ const a = $('alarm'); if (a) a.classList.toggle('on', on); }
+
+/* ---------- 일시정지 ----------
+   시간과 컴퓨터 차례를 모두 멈추고, 판과 패를 가려서 멈춘 동안 생각하지 못하게 합니다(모둠전 공정성).
+   태블릿 화면이 꺼지거나 다른 앱으로 넘어가도 자동으로 일시정지합니다. */
+let paused = false, pausedLeftMs = 0;
+function pauseGame(){
+  if (!G || G.over || paused || $('gameScreen').classList.contains('hidden')) return;
+  paused = true;
+  pausedLeftMs = turnDeadline ? Math.max(1000, turnDeadline - Date.now()) : 0;
+  stopTurnTimer();
+  clearTimeout(cpuTimer);
+  cancelDrag();
+  selected.clear();
+  showModal(`<h2>일시정지</h2>
+    <p class="sub">${G.current === 0 && pausedLeftMs ? `내 차례 · 남은 시간 ${Math.ceil(pausedLeftMs / 1000)}초` : '컴퓨터 차례에서 멈췄어요'}</p>
+    <div class="modal-actions"><button class="btn primary big" id="mGo">▶ 계속하기</button></div>`,
+    m => m.querySelector('#mGo').onclick = resumeGame, 'pause');
+}
+function resumeGame(){
+  if (!paused) return;
+  paused = false;
+  closeModal();
+  render();
+  if (G.current === 0) startTurnTimer(pausedLeftMs);
+  else scheduleCpu();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 function secondsLeft(){ return Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000)); }
 function tickTurnTimer(){
   if (!turnDeadline || !G || G.over || G.current !== 0) return stopTurnTimer();
@@ -913,11 +968,13 @@ function tickTurnTimer(){
   if (bar) bar.style.setProperty('--p', Math.max(0, (turnDeadline - Date.now()) / (turnSeconds() * 1000)));
   const hurry = left <= CONFIG.HURRY_SECONDS;
   flag.classList.toggle('hurry', hurry);
+  setAlarm(left <= CONFIG.ALARM_SECONDS && left > 0);
   if (hurry && left <= 5 && left > 0 && left !== lastBeepSec) { lastBeepSec = left; beep(880, 0.05); }
   if (left <= 0) turnTimeout();
 }
 // 시간 초과: 이번 턴에 바꾼 것을 모두 되돌리고 1장 뽑은 뒤 차례를 넘깁니다(「뽑고 넘기기」와 같은 결과).
 function turnTimeout(){
+  if (paused) return;
   stopTurnTimer();
   cancelDrag();
   if ($('modalRoot').innerHTML) closeModal();   // 용어·메뉴 팝업을 보던 중이어도 닫고 진행
@@ -934,6 +991,7 @@ function lowestLeftover(){
 function finish(winner, why){
   G.over = true;
   stopTurnTimer();
+  paused = false;
   $('toast').className = 'toast'; $('toast').parentElement.classList.remove('has-msg');
   G.result = computeResult(G, winner);
   G.result.why = why;
@@ -963,10 +1021,18 @@ function moveTiles(ids, dest){
   if (dest.type === 'set' && ids.every(id => dest.set.includes(id))) return;
 
   // 원래 자리에서 빼기
+  const handBefore = G.hands[0].slice();
+  const hadAll = ids.every(id => handBefore.includes(id));
   G.hands[0] = G.hands[0].filter(id => !ids.includes(id));
   G.board.forEach(s => { for (const id of ids) { const k = s.indexOf(id); if (k >= 0) s.splice(k, 1); } });
   // 목적지에 넣기
-  if (dest.type === 'hand') G.hands[0].push(...ids);
+  if (dest.type === 'hand') {
+    // 끼워 넣을 자리(anchor 타일의 앞/뒤)가 있으면 그 자리에, 없으면 맨 뒤에
+    let at = dest.anchor != null && !ids.includes(dest.anchor) ? G.hands[0].indexOf(dest.anchor) : -1;
+    if (at >= 0) G.hands[0].splice(at + (dest.after ? 1 : 0), 0, ...ids);
+    else if (dest.anchor != null && ids.includes(dest.anchor) && hadAll) G.hands[0] = handBefore;   // 제자리에 놓음
+    else G.hands[0].push(...ids);
+  }
   else if (dest.type === 'new') G.board.push(ids.slice());
   else dest.set.push(...ids);
   G.board = G.board.filter(s => s.length > 0);
@@ -1033,10 +1099,17 @@ $('endTurnBtn').onclick = () => {
 function scheduleCpu(){
   clearTimeout(cpuTimer);
   render();
-  cpuTimer = setTimeout(cpuTurn, CONFIG.CPU_DELAY_MS);
+  cpuTimer = setTimeout(cpuTurn, cpuThinkMs());
+}
+// 이번 컴퓨터가 낼 장수를 미리 보고 생각 시간을 정함 (판 진행은 cpuTurn에서 똑같이 다시 계산하므로 결과는 그대로)
+function cpuThinkMs(){
+  const t = CONFIG.CPU_THINK, i = G.current;
+  const n = cpuPlan(G.hands[i], G.board, G.melded[i], G.level, rules(G.mode).FIRST_MELD).played.length;
+  const base = n ? Math.min(t.MAX_MS, t.PLAY_MS + n * t.PER_TILE_MS) : t.DRAW_MS;
+  return base + Math.round((Math.random() - 0.5) * t.JITTER_MS);   // 매번 똑같은 박자가 아니게 살짝 흔듦
 }
 function cpuTurn(){
-  if (!G || G.over || G.current === 0) return;
+  if (!G || G.over || G.current === 0 || paused) return;
   const i = G.current;
   const name = CONFIG.CPU_NAMES[i - 1];
   const plan = cpuPlan(G.hands[i], G.board, G.melded[i], G.level, rules(G.mode).FIRST_MELD);
@@ -1063,8 +1136,12 @@ function cpuTurn(){
 /* =====================================================================
    게임 화면 그리기
    ===================================================================== */
+let renderPending = false;
 function render(){
   if (!G) return;
+  // 타일을 끄는 중에 화면을 다시 그리면 손가락 아래 타일이 사라져 끌기가 끊김 → 놓은 뒤에 그림
+  if (drag && drag.started) { renderPending = true; return; }
+  renderPending = false;
   const myTurn = G.current === 0 && !G.over;
   const startHand = new Set(G.turnStart.hand);
   const meldLock = !G.melded[0];
@@ -1109,6 +1186,7 @@ function render(){
       box.appendChild(tileEl(id, cls));
     });
     if (hasSel && myTurn && ![...selected].every(id => s.includes(id))) {
+      box.classList.add('can-drop');
       const slot = document.createElement('div'); slot.className = 'slot'; slot.textContent = '+';
       box.appendChild(slot);
     }
@@ -1117,7 +1195,7 @@ function render(){
   if (myTurn) {
     const ns = document.createElement('div');
     ns.className = 'newset'; ns.dataset.drop = 'new';
-    ns.textContent = hasSel ? '+ 여기에 새 세트' : '+ 빈 곳에 놓아 새 세트';
+    ns.textContent = '+ 새 세트 만들기';   // 문구 길이가 바뀌면 판 배열이 흔들리므로 항상 같은 문구
     board.appendChild(ns);
   }
   if (!G.board.length && !myTurn) {
@@ -1126,7 +1204,7 @@ function render(){
   }
 
   // 내 패
-  const rack = $('rack'); rack.innerHTML = '';
+  const rack = $('rack'); rack.innerHTML = '<i class="ins-mark" id="insMark"></i>';
   G.hands[0].forEach(id => {
     let cls = '';
     if (selected.has(id)) cls += ' selected';
@@ -1158,7 +1236,9 @@ function render(){
 let drag = null;
 document.addEventListener('pointerdown', e => {
   const t = e.target.closest('#gameScreen .tile[data-id]');
-  if (!t || !canAct()) return;
+  if (!t) return;
+  const inRack = !!t.closest('#rack');
+  if (!canAct() && !(inRack && canReorder())) return;   // 내 차례가 아닐 때도 내 패 순서는 정리할 수 있음
   drag = { id: Number(t.dataset.id), x: e.clientX, y: e.clientY, started: false, ghost: null, ids: null };
 });
 document.addEventListener('pointermove', e => {
@@ -1184,6 +1264,7 @@ function markTarget(){
   if (!drag || !drag.started) return;
   const tg = dropElAt(drag.px, drag.py);
   if (tg) tg.classList.add('target');
+  showInsertMark();
 }
 
 /* ---------- 끄는 동안 가장자리 자동 스크롤 (판·내 패 창) ----------
@@ -1238,6 +1319,8 @@ function hideEdges(){
 function cancelDrag(){
   if (drag && drag.ghost) drag.ghost.remove();
   drag = null;
+  if (renderPending) render();
+  $('insMark').style.display = 'none';
   hideEdges();
   document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
 }
@@ -1245,14 +1328,20 @@ document.addEventListener('pointerup', e => {
   if (!drag) return;
   const d = drag; drag = null;
   hideEdges();
+  if (renderPending && !d.started) render();
+  $('insMark').style.display = 'none';
   if (d.started) {
     d.ghost.remove();
     document.querySelectorAll('.target').forEach(el => el.classList.remove('target'));
     const tg = dropElAt(e.clientX, e.clientY);
-    if (tg) moveTiles(d.ids, destOf(tg));
-    else render();
+    if (tg) {
+      const dest = destOf(tg, e.clientX, e.clientY);
+      if (canAct() || (dest.type === 'hand' && d.ids.every(id => G.hands[0].includes(id)))) { moveTiles(d.ids, dest); if (renderPending) render(); }
+      else render();
+    } else render();
   } else {
-    // 탭: 고르기/풀기
+    // 탭: 고르기/풀기 (내 차례에만)
+    if (!canAct()) return;
     if (!G.melded[0] && wasOnBoard(d.id)) return toast('첫 등록 전에는 판에 있던 타일을 움직일 수 없어요', true);
     selected.has(d.id) ? selected.delete(d.id) : selected.add(d.id);
     beep(700, 0.04);
@@ -1265,9 +1354,40 @@ function dropElAt(x, y){
   const el = document.elementFromPoint(x, y);
   return el ? el.closest('[data-drop]') : null;
 }
-function destOf(el){
+function destOf(el, x, y){
   if (el.dataset.drop === 'set') return { type: 'set', set: G.board[Number(el.dataset.idx)] };
+  if (el.dataset.drop === 'hand' && x !== undefined) return Object.assign({ type: 'hand' }, rackSlotAt(x, y));
   return { type: el.dataset.drop };
+}
+
+// 내 패에서 손가락 위치에 가장 가까운 타일을 찾아 그 앞/뒤에 끼워 넣을 자리를 정합니다.
+function rackSlotAt(x, y){
+  const tiles = [...$('rack').querySelectorAll('.tile[data-id]')];
+  if (!tiles.length) return { anchor: null };
+  let best = null, bestD = Infinity;
+  for (const t of tiles) {
+    const r = t.getBoundingClientRect();
+    const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;     // 같은 줄이 우선
+    const dx = Math.abs(x - (r.left + r.width / 2));
+    const d = dy * 4 + dx;
+    if (d < bestD) { bestD = d; best = { t, r }; }
+  }
+  return { anchor: Number(best.t.dataset.id), after: x > best.r.left + best.r.width / 2, rect: best.r };
+}
+function showInsertMark(){
+  const m = $('insMark');
+  if (!drag || !drag.started) { m.style.display = 'none'; return; }
+  const tg = dropElAt(drag.px, drag.py);
+  if (!tg || tg.dataset.drop !== 'hand') { m.style.display = 'none'; return; }
+  const slot = rackSlotAt(drag.px, drag.py);
+  if (!slot.rect) { m.style.display = 'none'; return; }
+  const rack = $('rack'), rr = rack.getBoundingClientRect();
+  const gap = 3;
+  const left = (slot.after ? slot.rect.right + gap : slot.rect.left - gap) - rr.left + rack.scrollLeft - 4.5;
+  m.style.display = 'block';
+  m.style.left = left + 'px';
+  m.style.top = (slot.rect.top - rr.top + rack.scrollTop - 2) + 'px';
+  m.style.height = (slot.rect.height + 4) + 'px';
 }
 
 // 고른 타일이 있을 때 목적지를 탭하면 옮기기 (타일 자체를 탭한 경우는 고르기로 처리)
@@ -1280,6 +1400,8 @@ document.addEventListener('click', e => {
 
 /* ---------- 메뉴·효과음·규칙 ---------- */
 $('soundBtn').onclick = () => { prefs.sound = !prefs.sound; store(PREF_KEY, prefs); render(); beep(660); };
+
+$('pauseBtn').onclick = pauseGame;
 
 $('menuBtn').onclick = () => {
   const codeLine = G ? `<p class="sub">판 코드 ${G.code} · ${settingsText(G)} · ${CONFIG.APP_VERSION}</p>` : '';
@@ -1370,7 +1492,10 @@ renderStart();
 // 글꼴(Jua, Black Han Sans)을 못 받았으면 굵은 기본 글꼴로 대신
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => {
-    try { if (!document.fonts.check('20px "Black Han Sans"')) document.documentElement.classList.add('nofont'); } catch (e) {}
+    // 한글 글자로 확인해야 정확함 (글꼴이 글자 묶음별로 나뉘어 내려오기 때문)
+    Promise.all([document.fonts.load('20px Jua', '가'), document.fonts.load('20px "Black Han Sans"', '가1')])
+      .then(r => { if (!r[0].length || !r[1].length) document.documentElement.classList.add('nofont'); })
+      .catch(() => document.documentElement.classList.add('nofont'));
   });
 }
 </script>
