@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&display=swap" rel="stylesheet">
+<!-- 온라인 대전용 Firebase (인터넷이 없으면 못 받아도 혼자 하기·모둠전은 그대로 됨) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
   :root{
     /* 색 — 스티커 팩 느낌: 진한 포도색 바탕 + 선명한 포인트 세 가지 */
@@ -194,6 +198,7 @@
   .tray-info.has-msg > .meld, .tray-info.has-msg > #handInfo{visibility:hidden;}
   .meld{color:var(--sun);}
   .meld.ok{color:var(--mint);}
+  .meld.wait{color:var(--paper); opacity:.85;}
   .rack{
     display:flex; flex-wrap:wrap; gap:6px; align-content:flex-start;
     min-height:calc(var(--th) + 24px); max-height:calc(var(--th)*2 + 32px); overflow-y:auto;
@@ -306,6 +311,52 @@
     .players{order:10; flex-basis:100%;}
     .nm-full{display:inline;} .nm-short{display:none;}
   }
+  @media (max-width:700px){  /* 좁은 세로 화면: 상대 칩 이름을 줄여서 한 줄에 */
+    .nm-full{display:none;} .nm-short{display:inline;}
+    .players .chip{padding:0 10px; gap:5px;}
+  }
+  /* ---------- 온라인 대전 ---------- */
+  .name-input{
+    height:46px; width:100%; border-radius:13px; padding:0 14px; font-family:var(--font-ui); font-size:19px;
+    background:#fff; color:var(--ink); border:2.5px solid var(--ink); box-shadow:inset 0 3px 0 rgba(26,18,64,.12); outline:none;
+  }
+  .name-input:focus{border-color:var(--grape); box-shadow:0 0 0 3px var(--sky);}
+  .online-note{margin:-4px 0 0; font-size:15px; opacity:.65; text-align:center;}
+  #lobbyScreen{height:100%; display:flex; padding:16px; overflow-y:auto;}
+  .lobby-head{font-family:var(--font-num); font-size:clamp(30px,5vw,42px); color:var(--sun); text-shadow:2px 2px 0 var(--ink), 0 5px 0 var(--ink);}
+  .lobby-lbl{font-size:16px; opacity:.6; margin-bottom:-10px;}
+  .seats{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%;}
+  .seat{
+    height:76px; border-radius:16px; border:2.5px dashed rgba(26,18,64,.3); color:rgba(26,18,64,.4);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:0; padding:0 6px;
+  }
+  .seat .who{font-size:13px; opacity:.7;}
+  .seat .nm{font-size:18px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .seat.filled{border:2.5px solid var(--ink); background:var(--sun); color:var(--ink); box-shadow:0 3px 0 var(--ink);}
+  .seat.filled.me{background:var(--sky);}
+  .seat.cpu{border:2.5px solid var(--ink); background:var(--paper-2); color:var(--ink); box-shadow:0 3px 0 var(--ink);}
+  .lobby-msg{margin:0; font-size:16px; color:var(--grape); text-align:center; min-height:22px;}
+  .tg:disabled{opacity:.55; cursor:default;}
+  .tg.on:disabled{opacity:1;}
+  /* 온라인 상대 칩: 이름 · 남은 장 수 · 등록 표시 · 남은 시간 */
+  .chip .reg{font-size:12px; padding:1px 5px; border-radius:6px; background:var(--mint); color:var(--ink); border:1.5px solid var(--ink);}
+  .chip .left{font-family:var(--font-num); font-size:16px; min-width:1.6em; text-align:right;}
+  .chip.away{opacity:.55;}
+  .chip.away .cnt::after{content:"연결 끊김"; font-family:var(--font-ui); font-size:13px; margin-left:4px;}
+  /* 상대가 바꾸는 중인 임시 세트: 점선 테두리 */
+  .set.temp{border-color:var(--sky); border-style:dashed;}
+  .board.watching{box-shadow:inset 0 5px 0 rgba(0,0,0,.22), 0 0 0 3px rgba(79,210,255,.35);}
+  /* 연결이 끊겼을 때 위쪽 띠 */
+  .net-banner{position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:200; padding:6px 18px; border-radius:0 0 14px 14px;
+    background:var(--danger); color:#fff; border:2.5px solid var(--ink); border-top:none; font-size:16px; display:none;}
+  .net-banner.show{display:block;}
+  /* 내 차례가 오면 화면 테두리가 노랗게 한 번 반짝 */
+  .turn-glow{position:fixed; inset:0; z-index:59; pointer-events:none; opacity:0;
+    box-shadow:inset 0 0 0 10px var(--sun), inset 0 0 80px 24px rgba(255,210,63,.6);}
+  .turn-glow.on{animation:glow 1.3s ease-out 1;}
+  @keyframes glow{0%{opacity:0;} 20%{opacity:1;} 100%{opacity:0;}}
+  @media (max-width:640px){ .seats{grid-template-columns:repeat(2,1fr);} }
+
   /* 인터넷이 없어 글꼴을 못 받았을 때: 기본 글꼴을 굵게 써서 분위기를 유지 */
   .nofont body, .nofont button{font-weight:700; font-synthesis:weight;}
   .nofont .tile .num, .nofont .logo-title, .nofont .modal h2, .nofont .code-big span, .nofont .keypad button,
@@ -325,26 +376,29 @@
 
     <div class="opt-table">
       <div class="opt-label">게임</div>
-      <div class="toggle-row c2" data-opt="kind">
+      <div class="toggle-row c3" data-opt="kind">
         <button class="tg" data-v="solo">혼자 하기</button>
         <button class="tg" data-v="group">모둠전</button>
+        <button class="tg" data-v="online">온라인</button>
       </div>
-      <div class="opt-label">모드</div>
-      <div class="toggle-row c2" data-opt="mode">
+      <div class="opt-label opt-off">모드</div>
+      <div class="toggle-row c2 opt-off" data-opt="mode">
         <button class="tg" data-v="quick">빠른 판</button>
         <button class="tg" data-v="full">정식</button>
       </div>
-      <div class="opt-label">컴퓨터 수</div>
-      <div class="toggle-row c3" data-opt="cpus">
+      <div class="opt-label opt-off">컴퓨터 수</div>
+      <div class="toggle-row c3 opt-off" data-opt="cpus">
         <button class="tg" data-v="1">1명</button>
         <button class="tg" data-v="2">2명</button>
         <button class="tg" data-v="3">3명</button>
       </div>
-      <div class="opt-label">실력</div>
-      <div class="toggle-row c2" data-opt="level">
+      <div class="opt-label opt-off">실력</div>
+      <div class="toggle-row c2 opt-off" data-opt="level">
         <button class="tg" data-v="0">쉬움</button>
         <button class="tg" data-v="1">보통</button>
       </div>
+      <div class="opt-label opt-on hidden">닉네임</div>
+      <input class="name-input opt-on hidden" id="nameInput" maxlength="8" autocomplete="off" placeholder="실명 말고 별명 (8자까지)">
     </div>
 
     <div class="start-actions" id="soloActions">
@@ -354,6 +408,11 @@
       <button class="btn primary big" id="makeCodeBtn">판 코드 만들기</button>
       <button class="btn big" id="enterCodeBtn">코드 입력하기</button>
     </div>
+    <div class="start-actions hidden" id="onlineActions">
+      <button class="btn primary big" id="createBtn">방 만들기</button>
+      <button class="btn big" id="joinBtn">코드로 들어가기</button>
+    </div>
+    <p class="online-note hidden" id="onlineNote">친구들과 방 코드로 모여 실시간으로 겨뤄요 · 2~4명</p>
     <div class="start-foot">
       <span class="ver" id="verLabel"></span>
       <button class="btn small" id="rulesBtnStart" style="background:var(--sky)">? 규칙</button>
@@ -361,6 +420,31 @@
   </div>
   </div>
 </div>
+
+<!-- ================= 온라인 대기실 ================= -->
+<div id="lobbyScreen" class="hidden">
+  <div class="start-wrap">
+    <div class="lobby-head">온라인 대전</div>
+    <div class="start-card">
+      <div class="lobby-lbl">방 코드</div>
+      <div class="code-big" id="lobbyCode"></div>
+      <div class="seats" id="lobbySeats"></div>
+      <div class="opt-table" id="lobbyOpts">
+        <div class="opt-label">모드</div>
+        <div class="toggle-row c2" data-opt="mode"></div>
+        <div class="opt-label">인원</div>
+        <div class="toggle-row c3" data-opt="seats"></div>
+      </div>
+      <p class="lobby-msg" id="lobbyMsg"></p>
+      <div class="start-actions">
+        <button class="btn big" id="leaveLobbyBtn">나가기</button>
+        <button class="btn primary big" id="startBtn">시작!</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="net-banner" id="netBanner">연결 중… 잠시만 기다려 주세요</div>
+<div class="turn-glow" id="turnGlow" aria-hidden="true"></div>
 
 <!-- ================= 게임 화면 ================= -->
 <div id="gameScreen" class="hidden">
@@ -408,7 +492,7 @@
    ===================================================================== */
 const CONFIG = {
   APP_NAME: '루미큐브',        // 화면에 보이는 앱 이름 (바꿀 때 여기만 고치면 됨)
-  APP_VERSION: 'v1.4',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
+  APP_VERSION: 'v2.0',          // 고쳐서 다시 올릴 때 올려 주세요. 모둠원이 같은 버전인지 결과 화면에서 확인합니다.
 
   // 빠른 판 / 정식 규칙
   // TURN_SECONDS: 사람 한 턴의 제한 시간(초). 다 되면 바꾼 것을 되돌리고 1장 뽑은 뒤 차례를 넘깁니다.
@@ -433,6 +517,28 @@ const CONFIG = {
     { name: '검정', hex: '#1a1240', mark: '◆' },
   ],
   CPU_NAMES: ['컴퓨터1', '컴퓨터2', '컴퓨터3'],
+
+  // 온라인 대전
+  ONLINE: {
+    SEAT_OPTIONS: [2, 3, 4],    // 방장이 고를 수 있는 인원 (빈자리는 컴퓨터)
+    DEFAULTS: { mode: 'quick', seats: 4 },
+    CPU_LEVEL: 1,               // 온라인 빈자리 컴퓨터 실력 (0 쉬움, 1 보통)
+    AWAY_SEC: 10,               // 연결이 끊긴 학생 차례가 오면 이만큼 기다린 뒤 자동으로 1장 뽑고 넘김
+    GRACE_MS: 1500,             // 시간 끝 무렵 누른 「턴 끝내기」가 도착할 여유
+    PREVIEW_MS: 300,            // 타일을 놓은 모습을 다른 태블릿에 보내는 간격(ms) — 여러 번 놓아도 이 간격으로 묶어 보냄
+    HOST_TIMEOUT_SEC: 30,       // 방장(심판) 소식이 이만큼 끊기면 다른 학생이 심판을 이어받음
+    HOST_BEAT_SEC: 4,           // 방장이 "살아 있어요" 신호를 보내는 간격
+    ROOM_EXPIRE_HOURS: 24,      // 이보다 오래된 방은 새 방을 만들 때 함께 지움
+  },
+};
+
+/* Firebase 설정값 — 사용안내 2단계에서 복사해 붙여넣으세요. 비어 있으면 '혼자 하기'와 '모둠전'만 됩니다. */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  appId: "",
 };
 
 /*LOGIC-START*/
@@ -691,6 +797,186 @@ function computeResult(G, winner){
     leftovers: G.hands.map(h => ({ count: h.length, pts: handPenalty(h) })),
   };
 }
+
+/* =====================================================================
+   온라인 대전 — 심판(방장 태블릿)이 쓰는 규칙
+   ===================================================================== */
+const arr = x => Array.isArray(x) ? x : x ? Object.values(x) : [];
+
+// 학생이 「턴 끝내기」로 보낸 판을 검사합니다. 타일 번호로 대조하므로 화면을 조작해 없는 타일을 만들어도 통과 못 함.
+function validateSubmission(oldBoard, hand, newBoard, melded, threshold){
+  const bad = reason => ({ ok: false, reason });
+  const oldIds = [].concat(...oldBoard), newIds = [].concat(...newBoard);
+  if (new Set(newIds).size !== newIds.length) return bad('같은 타일이 두 번 놓였어요');
+  const newSet = new Set(newIds), handSet = new Set(hand), oldSet = new Set(oldIds);
+  if (!oldIds.every(id => newSet.has(id))) return bad('판에 있던 타일은 판에 남아 있어야 해요');
+  const played = newIds.filter(id => !oldSet.has(id));
+  if (!played.every(id => handSet.has(id))) return bad('내 패에 없는 타일이 있어요');
+  if (!played.length) return bad('패에서 한 장 이상 내야 턴을 끝낼 수 있어요');
+  for (const s of newBoard) { const a = analyzeSet(s); if (!a.ok) return bad(a.reason); }
+  if (!melded) {
+    const keys = new Set(newBoard.map(setKey));
+    if (!oldBoard.every(s => keys.has(setKey(s)))) return bad('첫 등록 전에는 판에 있던 세트를 바꿀 수 없어요');
+    const pts = newBoard.filter(s => s.every(id => handSet.has(id))).reduce((t, s) => t + analyzeSet(s).value, 0);
+    if (pts < threshold) return bad(`첫 등록은 내 타일로만 ${threshold}점 이상이어야 해요 (지금 ${pts}점)`);
+  }
+  return { ok: true, played };
+}
+
+// 끝난 판의 순위: 다 낸 사람이 1등, 나머지는 남은 타일 점수가 적은 순
+function rankRows(rows, winner){
+  return rows.map((r, i) => Object.assign({ seat: i }, r))
+    .sort((a, b) => (b.seat === winner) - (a.seat === winner) || a.pts - b.pts || a.count - b.count);
+}
+
+/* 판 진행 엔진 — 방장(심판) 태블릿이 돌립니다.
+   io = { now(), commit(G, H, P), isAway(seat) }
+   G: 모두가 보는 판 상태 / H: 패(주인 id → 타일 번호, 본인·심판만 읽음) / P: 남은 더미(심판만 읽음) */
+function makeRummiEngine(io){
+  let G = null, H = {}, P = [];
+  const R = () => rules(G.mode);
+  const nm = i => G.seats[i].name;
+  const owner = i => G.seats[i].id;
+  const away = i => !G.seats[i].cpu && io.isAway(i);
+  const isAuto = i => G.seats[i].cpu || away(i);
+  const commit = () => io.commit(G, H, P);
+
+  function think(i){
+    if (!G.seats[i].cpu) return CONFIG.ONLINE.AWAY_SEC * 1000;
+    const t = CONFIG.CPU_THINK;
+    const n = cpuPlan(H[owner(i)] || [], G.board, G.seats[i].melded, G.level, R().FIRST_MELD).played.length;
+    const base = n ? Math.min(t.MAX_MS, t.PLAY_MS + n * t.PER_TILE_MS) : t.DRAW_MS;
+    return base + Math.round((Math.random() - 0.5) * t.JITTER_MS);
+  }
+
+  function newGame(seats, settings){
+    const r = rules(settings.mode);
+    const pool = []; for (let i = 0; i < 106; i++) pool.push(i);
+    for (let i = pool.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [pool[i], pool[k]] = [pool[k], pool[i]]; }
+    H = {};
+    seats.forEach(s => H[s.id] = []);
+    for (let t = 0; t < r.START_TILES; t++) seats.forEach(s => H[s.id].push(pool.shift()));
+    P = pool;
+    G = {
+      v: CONFIG.APP_VERSION, gameId: Math.random().toString(36).slice(2, 8),
+      mode: settings.mode, level: CONFIG.ONLINE.CPU_LEVEL,
+      seats: seats.map(s => ({ id: s.id, name: s.name, cpu: !!s.cpu, count: r.START_TILES, melded: false })),
+      board: [], turn: 0, turnId: 0, turnUid: '', turnEnds: 0, cpuAt: 0,
+      passes: 0, poolCount: P.length, phase: 'play', log: '', lastPlayed: [], result: null,
+    };
+    const start = Math.floor(Math.random() * seats.length);
+    G.log = `${nm(start)}부터 시작해요`;
+    setTurn(start);
+    commit();
+  }
+
+  function setTurn(i){
+    G.turn = i; G.turnId++;
+    G.turnUid = G.seats[i].cpu ? '' : G.seats[i].id;      // 보안 규칙: 이 학생만 임시 판(preview)을 쓸 수 있음
+    G.turnEnds = io.now() + R().TURN_SECONDS * 1000;
+    G.cpuAt = isAuto(i) ? io.now() + think(i) : 0;
+  }
+  function advance(){
+    const n = G.seats.length;
+    if (G.passes >= n) return finish(lowest(), '더미가 바닥나 더 낼 수 있는 사람이 없어요');
+    setTurn((G.turn + 1) % n);
+    commit();
+  }
+  function lowest(){
+    const pens = G.seats.map((s, i) => handPenalty(H[owner(i)] || []));
+    const min = Math.min(...pens);
+    const who = pens.map((p, i) => p === min ? i : -1).filter(i => i >= 0);
+    return who.length === 1 ? who[0] : -1;
+  }
+
+  // 1장 뽑고 넘기기 — 직접 누름 / 시간 초과 / 끊긴 학생 / 규칙 위반에서 함께 씀
+  function draw(i, why){
+    const o = owner(i);
+    const head = { timeout: `⏰ ${nm(i)} 시간 초과 · `, away: `${nm(i)} 연결 끊김 · `, penalty: `⚠ ${nm(i)} 규칙에 안 맞아 되돌림 · ` }[why] || '';
+    if (P.length) {
+      H[o] = (H[o] || []).concat(P.shift());
+      G.passes = 0;
+      G.log = `${head}${nm(i)}이(가) 1장 뽑았어요`;
+    } else {
+      G.passes++;
+      G.log = `${head}${nm(i)}이(가) 넘겼어요 (더미 없음)`;
+    }
+    G.seats[i].count = H[o].length;
+    G.poolCount = P.length;
+    G.lastPlayed = [];
+    advance();
+  }
+  function apply(i, board, played){
+    const o = owner(i);
+    G.board = board.map(s => analyzeSet(s).order);
+    H[o] = (H[o] || []).filter(id => !played.includes(id));
+    G.seats[i].count = H[o].length;
+    G.seats[i].melded = true;
+    G.passes = 0;
+    G.lastPlayed = played.slice();
+    G.log = `${nm(i)}이(가) ${played.length}장을 냈어요`;
+    if (!H[o].length) return finish(i, `${nm(i)}이(가) 패를 모두 냈어요!`);
+    advance();
+  }
+
+  /* 학생의 행동. kind: 'end'(턴 끝내기, board 함께) | 'draw'(뽑고 넘기기) */
+  function act(i, kind, board){
+    if (!G || G.phase !== 'play') return { ok: false, reason: '지금은 할 수 없어요' };
+    if (G.turn !== i) return { ok: false, reason: '내 차례가 아니에요' };
+    if (kind === 'draw') { draw(i, ''); return { ok: true }; }
+    if (kind === 'end') {
+      const nb = arr(board).map(s => arr(s).map(Number)).filter(s => s.length);
+      const v = validateSubmission(G.board, H[owner(i)] || [], nb, G.seats[i].melded, R().FIRST_MELD);
+      if (!v.ok) { draw(i, 'penalty'); return { ok: false, reason: `${v.reason} · 판을 되돌리고 1장 뽑았어요` }; }
+      apply(i, nb, v.played);
+      return { ok: true };
+    }
+    return { ok: false, reason: '알 수 없는 행동이에요' };
+  }
+
+  function cpuMove(i){
+    const plan = cpuPlan(H[owner(i)] || [], G.board, G.seats[i].melded, G.level, R().FIRST_MELD);
+    if (plan.played.length) apply(i, plan.board, plan.played);
+    else draw(i, '');
+  }
+
+  function finish(winner, why){
+    const rows = G.seats.map((s, i) => { const h = H[owner(i)] || []; return { name: s.name, cpu: s.cpu, count: h.length, pts: handPenalty(h), tiles: h.slice() }; });
+    G.phase = 'over';
+    G.turnUid = '';
+    G.result = { winner, why, rows: rankRows(rows, winner) };
+    G.log = why;
+    commit();
+  }
+
+  /* 0.3초마다 호출: 컴퓨터 차례 · 시간 초과 · 끊긴 학생 */
+  function tick(){
+    if (!G || G.phase !== 'play') return;
+    const t = io.now(), i = G.turn;
+    if (isAuto(i)) {
+      if (!G.cpuAt) { G.cpuAt = t + think(i); commit(); }
+      else if (t >= G.cpuAt) G.seats[i].cpu ? cpuMove(i) : draw(i, 'away');
+    } else if (t >= G.turnEnds + CONFIG.ONLINE.GRACE_MS) draw(i, 'timeout');
+  }
+
+  return {
+    newGame, act, tick,
+    load(g, h, p){ G = g; H = h; P = p; },
+    touch(){ if (G) commit(); },
+    get game(){ return G; }, get hands(){ return H; }, get pool(){ return P; },
+    reassignSeat(i, newId){ const old = G.seats[i].id; H[newId] = H[old] || []; delete H[old]; G.seats[i].id = newId; if (G.turn === i && G.phase === 'play') G.turnUid = newId; commit(); },
+    // 끊긴 학생이 돌아오면 그 차례 시간을 새로 줌
+    setAway(i, isAway){
+      const s = G && G.seats[i]; if (!s || s.cpu || !!s.away === isAway) return;
+      s.away = isAway;
+      if (G.phase === 'play' && G.turn === i) {
+        if (isAway) G.cpuAt = io.now() + think(i);
+        else { G.cpuAt = 0; G.turnEnds = io.now() + R().TURN_SECONDS * 1000; }
+      }
+      commit();
+    },
+  };
+}
 /*LOGIC-END*/
 
 /* =====================================================================
@@ -775,18 +1061,24 @@ function renderStart(){
   const logo = $('logoTiles'); logo.innerHTML = '';
   [0 * 26 + 6, 1 * 26 + 6, 2 * 26 + 6, 104].forEach(id => logo.appendChild(tileEl(id)));
 
-  document.querySelectorAll('.toggle-row').forEach(row => {
+  document.querySelectorAll('#startScreen .toggle-row').forEach(row => {
     const key = row.dataset.opt;
     row.querySelectorAll('.tg').forEach(b => b.classList.toggle('on', String(prefs[key]) === b.dataset.v));
   });
-  const groupMode = prefs.kind === 'group';
-  $('soloActions').classList.toggle('hidden', groupMode);
+  const groupMode = prefs.kind === 'group', onlineMode = prefs.kind === 'online';
+  $('soloActions').classList.toggle('hidden', groupMode || onlineMode);
   $('groupActions').classList.toggle('hidden', !groupMode);
+  $('onlineActions').classList.toggle('hidden', !onlineMode);
+  $('onlineNote').classList.toggle('hidden', !onlineMode);
+  document.querySelectorAll('#startScreen .opt-off').forEach(el => el.classList.toggle('hidden', onlineMode));
+  document.querySelectorAll('#startScreen .opt-on').forEach(el => el.classList.toggle('hidden', !onlineMode));
+  if (onlineMode && !$('nameInput').value) $('nameInput').value = prefs.name || '';
+  if (onlineMode && !onlineReady()) $('onlineNote').textContent = '온라인 설정이 아직 안 됐어요 (선생님: 사용안내 2단계)';
   const saved = load(SAVE_KEY);
   $('resumeBtn').classList.toggle('hidden', !(saved && !saved.over));
 }
 
-document.querySelectorAll('.toggle-row').forEach(row => {
+document.querySelectorAll('#startScreen .toggle-row').forEach(row => {
   row.addEventListener('click', e => {
     const b = e.target.closest('.tg'); if (!b) return;
     const key = row.dataset.opt;
@@ -879,8 +1171,8 @@ function goHome(){
   renderStart();
 }
 
-function save(){ store(SAVE_KEY, G.over ? null : G); }
-function canAct(){ return G && !G.over && G.current === 0 && !paused && !$('modalRoot').innerHTML; }
+function save(){ if (G.kind === 'online') return onlineLocalChange(); store(SAVE_KEY, G.over ? null : G); }
+function canAct(){ return G && !G.over && G.current === 0 && !paused && !$('modalRoot').innerHTML && !(G.kind === 'online' && O.pending); }
 function canReorder(){ return G && !G.over && !paused && !$('modalRoot').innerHTML; }
 
 // 이번 턴 시작 상태로 되돌리기. 패의 정렬 순서는 지금 화면 순서를 유지하고, 판에서 돌아온 타일만 뒤에 붙임
@@ -923,7 +1215,8 @@ function turnSeconds(){ return rules(G.mode).TURN_SECONDS; }
 function startTurnTimer(ms){
   stopTurnTimer();
   if (!G || G.over || G.current !== 0) return;
-  turnDeadline = Date.now() + (ms || turnSeconds() * 1000);   // ms: 일시정지에서 돌아올 때 남아 있던 시간
+  turnDeadline = Date.now() + (ms || turnSeconds() * 1000);
+  if (G.kind === 'online') turnDeadline = O.game.turnEnds - (net.now() - Date.now());   // 온라인: 심판이 정한 마감 시각   // ms: 일시정지에서 돌아올 때 남아 있던 시간
   lastBeepSec = -1;
   turnTick = setInterval(tickTurnTimer, 200);
   tickTurnTimer();
@@ -937,6 +1230,7 @@ function setAlarm(on){ const a = $('alarm'); if (a) a.classList.toggle('on', on)
    태블릿 화면이 꺼지거나 다른 앱으로 넘어가도 자동으로 일시정지합니다. */
 let paused = false, pausedLeftMs = 0;
 function pauseGame(){
+  if (G && G.kind === 'online') return;          // 온라인에서는 한 명이 멈추면 모두 멈추므로 일시정지 없음
   if (!G || G.over || paused || $('gameScreen').classList.contains('hidden')) return;
   paused = true;
   pausedLeftMs = turnDeadline ? Math.max(1000, turnDeadline - Date.now()) : 0;
@@ -978,6 +1272,11 @@ function turnTimeout(){
   stopTurnTimer();
   cancelDrag();
   if ($('modalRoot').innerHTML) closeModal();   // 용어·메뉴 팝업을 보던 중이어도 닫고 진행
+  if (G.kind === 'online') {                     // 온라인: 뽑기는 심판이 처리 — 내 화면은 되돌리기만
+    restoreTurnStart(); selected.clear(); O.pending = true; O.pendingAt = Date.now(); render();
+    toast('⏰ 시간 초과! 바꾼 것은 되돌리고 1장을 뽑아요', true, 3400);
+    return;
+  }
   drawAndPass(true);
 }
 
@@ -1080,13 +1379,18 @@ function drawAndPass(timeout){
   beep(timeout ? 240 : 380, timeout ? 0.2 : 0.07);
   nextTurn();
 }
-$('drawBtn').onclick = () => { if (canAct()) drawAndPass(false); };
+$('drawBtn').onclick = () => {
+  if (!canAct()) return;
+  if (G.kind === 'online') { stopTurnTimer(); restoreTurnStart(); selected.clear(); sendOnline('draw'); return; }
+  drawAndPass(false);
+};
 
 $('endTurnBtn').onclick = () => {
   if (!canAct()) return;
   const th = rules(G.mode).FIRST_MELD;
   const chk = checkEndTurn(G, th);
   if (!chk.ok) { toast(chk.reason, true, 3400); beep(200, 0.15); return; }
+  if (G.kind === 'online') { stopTurnTimer(); beep(760, 0.1); sendOnline('end', G.board); return; }
   G.playedSum += playedValue(G.board, chk.played);
   G.melded[0] = true;
   G.passes = 0;
@@ -1148,7 +1452,8 @@ function render(){
 
   // 상단
   const players = $('players'); players.innerHTML = '';
-  for (let i = 1; i < G.hands.length; i++) {
+  if (G.kind === 'online') renderOnlineChips(players);
+  else for (let i = 1; i < G.hands.length; i++) {
     const c = document.createElement('div');
     c.className = 'sticker chip' + (G.current === i && !G.over ? ' active thinking' : '');
     c.innerHTML = `<span class="nm-full">${CONFIG.CPU_NAMES[i - 1]}</span><span class="nm-short">컴${i}</span><span class="cnt"><i class="mini"></i>×${G.hands[i].length}</span>`;
@@ -1159,23 +1464,28 @@ function render(){
   $('roundStat').classList.toggle('hidden', !showRound);
   if (showRound) $('roundStat').innerHTML = `<b>${G.round}/${rules(G.mode).GROUP_TURN_LIMIT}</b>턴`;
   const flag = $('turnFlag');
-  if (myTurn) {
+  if (myTurn && !(G.kind === 'online' && O.pending)) {
     const left = turnDeadline ? secondsLeft() : turnSeconds();
     if (!flag.querySelector('.sec')) flag.innerHTML = `<span class="tf-lbl">◀ 내 차례</span><span class="tf-short">⏱</span><span class="sec">${left}</span><i class="bar"></i>`;
   } else {
-    flag.textContent = G.over ? '게임 끝' : '기다리는 중';
+    flag.textContent = G.over ? '게임 끝' : G.kind === 'online' && O.pending && G.current === 0 ? '심판 확인 중' : '기다리는 중';
     flag.classList.remove('hurry');
   }
   flag.classList.toggle('wait', !myTurn);
   $('soundBtn').textContent = prefs.sound ? '🔊' : '🔇';
+  $('pauseBtn').classList.toggle('hidden', G.kind === 'online');
 
   // 판
   const board = $('board'); board.innerHTML = '';
   const hasSel = selected.size > 0;
+  // 온라인: 다른 학생이 바꾸는 중인 세트(아직 확정 전)는 점선으로
+  const watching = G.kind === 'online' && !myTurn && !G.over && O.previewOn;
+  const confirmedKeys = watching ? new Set(O.game.board.map(setKey)) : null;
+  board.classList.toggle('watching', watching);
   G.board.forEach((s, idx) => {
     const a = analyzeSet(s);
     const box = document.createElement('div');
-    box.className = 'set' + (a.ok ? '' : ' invalid');
+    box.className = 'set' + (a.ok ? '' : ' invalid') + (watching && !confirmedKeys.has(setKey(s)) ? ' temp' : '');
     box.dataset.drop = 'set'; box.dataset.idx = idx;
     a.order.forEach(id => {
       let cls = '';
@@ -1223,10 +1533,14 @@ function render(){
     const n = G.turnStart.hand.filter(id => !G.hands[0].includes(id)).length;
     mi.textContent = n ? `이번 턴에 낸 타일 ${n}장` : '판을 바꾸거나 타일을 내 보세요';
     mi.className = 'meld ok';
+  } else if (G.kind === 'online' && !G.over) {
+    mi.textContent = O.pending && G.current === 0 ? '심판 태블릿이 확인하는 중…' : `${G.names[G.current]} 차례예요 · 기다리는 동안 패를 정리해요`;
+    mi.className = 'meld wait';
   } else { mi.textContent = ''; }
   $('handInfo').textContent = `내 패 ${G.hands[0].length}장`;
 
-  ['undoBtn', 'drawBtn', 'endTurnBtn'].forEach(b => $(b).disabled = !myTurn);
+  const waiting = G.kind === 'online' && O.pending;   // 심판 확인을 기다리는 동안은 잠금
+  ['undoBtn', 'drawBtn', 'endTurnBtn'].forEach(b => $(b).disabled = !myTurn || waiting);
   ['sortColorBtn', 'sortNumBtn'].forEach(b => $(b).disabled = G.over);
 
   if (flashIds.length) { const f = flashIds; setTimeout(() => { if (flashIds === f) flashIds = []; }, 1400); }
@@ -1404,6 +1718,7 @@ $('soundBtn').onclick = () => { prefs.sound = !prefs.sound; store(PREF_KEY, pref
 $('pauseBtn').onclick = pauseGame;
 
 $('menuBtn').onclick = () => {
+  if (G && G.kind === 'online') return showOnlineMenu();
   const codeLine = G ? `<p class="sub">판 코드 ${G.code} · ${settingsText(G)} · ${CONFIG.APP_VERSION}</p>` : '';
   showModal(`<h2>메뉴</h2>${codeLine}<div class="menu-list">
       <button class="btn primary" id="mResume">계속하기</button>
@@ -1448,6 +1763,7 @@ function showRules(){
     <div class="rule"><b>낼 게 없으면</b><p>「뽑고 넘기기」로 한 장을 가져가요.</p></div>
     <div class="rule"><b>시간 제한</b><p>한 턴은 빠른 판 ${q.TURN_SECONDS}초, 정식 ${f.TURN_SECONDS}초예요. 시간이 다 되면 이번 턴에 바꾼 것은 모두 되돌리고 한 장을 뽑아요.</p></div>
     <div class="rule"><b>조작</b><p>타일을 끌어서 옮기거나, 타일을 탭해 고른 뒤(여러 장 가능) 놓을 곳(＋ 칸, 새 세트, 내 패)을 탭하세요. 판이 꽉 찼을 때는 끄는 채로 판의 위·아래 가장자리(▲▼)에 손가락을 잠깐 두면 판이 저절로 움직여요.</p></div>
+    <div class="rule"><b>온라인 대전</b><p>방장이 만든 방 코드로 2~4명이 모여 판 하나를 같이 써요(빈자리는 컴퓨터). 내 차례에 놓는 타일은 친구 화면에 점선으로 바로 보이고, 「턴 끝내기」를 누르면 방장 태블릿이 규칙을 확인해요. 남의 차례에도 내 패 정리는 할 수 있어요.</p></div>
     <div class="rule"><b>모둠전</b><p>같은 판 코드면 모두 같은 판이에요. 빠른 판 ${q.GROUP_TURN_LIMIT}턴, 정식 ${f.GROUP_TURN_LIMIT}턴 안에 겨뤄요.<br>
       점수 = 낸 타일 합 − 남은 타일 합(조커 ${sc.JOKER_PENALTY}점) + 승리 ${sc.WIN_BONUS}점 + 남은 턴 × ${sc.PER_TURN_LEFT}점(이겼을 때)<br>동점이면 턴을 적게 쓴 사람이 이겨요.</p></div>
     <div class="modal-actions"><button class="btn primary" id="mOk">닫기</button></div>`,
@@ -1487,8 +1803,574 @@ function showResult(){
     });
 }
 
+/* =====================================================================
+   온라인 대전 — Firebase 연결 (시험할 때는 가짜 서버로 바꿔 끼울 수 있음)
+   ===================================================================== */
+function onlineReady(){ return !!(window.__RUMMI_NET__ || (FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL && window.firebase)); }
+function makeFirebaseNet(){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const auth = firebase.auth(), db = firebase.database();
+  let offset = 0;
+  db.ref('.info/serverTimeOffset').on('value', s => { offset = s.val() || 0; });
+  return {
+    uid: null,
+    async init(){ if (!auth.currentUser) await auth.signInAnonymously(); this.uid = auth.currentUser.uid; },
+    now: () => Date.now() + offset,
+    on(path, cb){ const r = db.ref(path); const h = s => cb(s.val()); r.on('value', h, () => cb(null)); return () => r.off('value', h); },
+    async get(path){ return (await db.ref(path).get()).val(); },
+    set: (path, v) => db.ref(path).set(v),
+    update: map => db.ref().update(map),
+    remove: path => db.ref(path).remove(),
+    push: (path, v) => db.ref(path).push(v),
+    async txn(path, fn){ const r = await db.ref(path).transaction(fn); return r.committed; },
+    onDisconnectSet: (path, v) => db.ref(path).onDisconnect().set(v),
+    cancelDisconnect: path => db.ref(path).onDisconnect().cancel(),
+    onConnected(cb){ db.ref('.info/connected').on('value', s => cb(!!s.val())); },
+  };
+}
+let net = null;
+async function getNet(){
+  if (net) return net;
+  if (window.__RUMMI_NET__) net = window.__RUMMI_NET__();      // 시험용 가짜 서버
+  else if (FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL && window.firebase) net = makeFirebaseNet();
+  else throw new Error('noconfig');
+  await net.init();
+  return net;
+}
+const sess = {
+  get(k){ try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v){ try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function normGame(g){
+  if (!g) return null;
+  g.seats = arr(g.seats); g.board = arr(g.board).map(s => arr(s).map(Number)).filter(s => s.length); g.lastPlayed = arr(g.lastPlayed);
+  if (g.result) g.result.rows = arr(g.result.rows).map(r => Object.assign(r, { tiles: arr(r.tiles) }));
+  return g;
+}
+function showScreen(id){ ['startScreen', 'lobbyScreen', 'gameScreen'].forEach(s => $(s).classList.toggle('hidden', s !== id)); }
+
+// 온라인 상태 (G는 이 상태를 '나 = 0번' 기준으로 돌려 맞춘 화면용 판이라, 기존 화면 그리기를 그대로 씀)
+const O = {
+  code: null, uid: null, name: '', meta: null, players: {}, game: null, hand: [], preview: null, previewOn: false,
+  order: [], isHost: false, engine: null, unsub: [], timers: [], hostTimers: [], hostUnsub: null, hostLastTurn: null,
+  pending: false, pendingAt: 0, workTurn: null, lastLog: '', lastTurnId: null, resultShown: null,
+  pvTimer: null, pvSent: '', lastViewBoard: null, timerFor: '', lastReject: 0,
+};
+function mySeat(){ return O.game ? O.game.seats.findIndex(s => s.id === O.uid) : -1; }
+
+/* ---------- 방 만들기 / 들어가기 ---------- */
+function readName(){
+  const v = $('nameInput').value.trim().slice(0, 8);
+  if (!v) { $('nameInput').focus(); showModal(`<h2>닉네임을 적어 주세요</h2><p class="sub">친구들이 알아볼 수 있는 별명이면 돼요 (실명은 쓰지 마세요)</p>
+    <div class="modal-actions"><button class="btn primary" id="mOk">알겠어요</button></div>`, m => m.querySelector('#mOk').onclick = () => { closeModal(); $('nameInput').focus(); }); return null; }
+  prefs.name = v; store(PREF_KEY, prefs);
+  return v;
+}
+function infoModal(title, msg){
+  showModal(`<h2>${title}</h2><p class="sub">${msg}</p><div class="modal-actions"><button class="btn primary" id="mOk">알겠어요</button></div>`,
+    m => m.querySelector('#mOk').onclick = closeModal);
+}
+async function connectOrExplain(){
+  try { return await getNet(); }
+  catch (e) {
+    infoModal('온라인에 연결할 수 없어요', e.message === 'noconfig' ? '온라인 설정이 아직 안 됐어요.<br>선생님께 알려 주세요 (사용안내 2단계).' : '인터넷 연결을 확인해 주세요.<br>혼자 하기·모둠전은 그대로 할 수 있어요.');
+    return null;
+  }
+}
+$('createBtn').onclick = async () => {
+  const name = readName(); if (!name) return;
+  const n = await connectOrExplain(); if (!n) return;
+  $('createBtn').disabled = true;
+  try {
+    cleanupOldRooms(n);
+    let code = null;
+    for (let k = 0; k < 20 && !code; k++) {
+      const c = String(1000 + Math.floor(Math.random() * 9000));
+      if (await n.txn(`roomIndex/${c}`, cur => cur ? undefined : { created: n.now() })) code = c;
+    }
+    if (!code) throw new Error('code');
+    const now = n.now();
+    await n.update({
+      [`rooms/${code}/meta`]: { host: n.uid, status: 'lobby', created: now, hostBeat: now, v: CONFIG.APP_VERSION, settings: CONFIG.ONLINE.DEFAULTS },
+      [`rooms/${code}/players/${n.uid}`]: { name, joined: now, online: true },
+    });
+    enterRoom(code, name);
+  } catch (e) { toastAnywhere('방을 만들지 못했어요. 다시 해 주세요'); }
+  $('createBtn').disabled = false;
+};
+async function cleanupOldRooms(n){
+  try {
+    const idx = await n.get('roomIndex') || {};
+    const limit = n.now() - CONFIG.ONLINE.ROOM_EXPIRE_HOURS * 3600 * 1000;
+    for (const [c, v] of Object.entries(idx)) {
+      if (v && v.created < limit) { n.remove(`rooms/${c}`).catch(() => {}); n.remove(`roomIndex/${c}`).catch(() => {}); }
+    }
+  } catch (e) {}
+}
+// 시작 화면에는 알림 줄이 없어서 작은 팝업으로 알림
+function toastAnywhere(msg){ if (!$('gameScreen').classList.contains('hidden')) toast(msg, true); else infoModal('잠깐만요', msg); }
+
+$('joinBtn').onclick = () => {
+  const name = readName(); if (!name) return;
+  let typed = '';
+  showModal(`<h2>방 코드 입력</h2><div class="code-big" id="cDigits"></div><div class="summary" id="cMsg"></div>
+    <div class="keypad" id="cPad">${[1,2,3,4,5,6,7,8,9].map(k => `<button data-k="${k}">${k}</button>`).join('')}
+      <button class="fn" data-k="clr">지우기</button><button data-k="0">0</button><button class="fn" data-k="back">←</button></div>
+    <div class="modal-actions"><button class="btn" id="mNo">취소</button><button class="btn primary" id="mGo" disabled>들어가기</button></div>`, m => {
+      const draw = () => {
+        m.querySelector('#cDigits').innerHTML = [0,1,2,3].map(i => `<span class="${typed[i] ? '' : 'empty'}">${typed[i] || ''}</span>`).join('');
+        m.querySelector('#mGo').disabled = typed.length !== 4;
+      };
+      m.querySelector('#cPad').onclick = e => {
+        const b = e.target.closest('button'); if (!b) return;
+        const k = b.dataset.k;
+        if (k === 'clr') typed = ''; else if (k === 'back') typed = typed.slice(0, -1); else if (typed.length < 4) typed += k;
+        m.querySelector('#cMsg').textContent = '';
+        draw();
+      };
+      m.querySelector('#mNo').onclick = closeModal;
+      m.querySelector('#mGo').onclick = async () => {
+        m.querySelector('#mGo').disabled = true;
+        const why = await joinRoom(typed, name);
+        if (why !== true && $('modalRoot').contains(m)) { m.querySelector('#cMsg').textContent = why; m.querySelector('#mGo').disabled = false; }
+      };
+      draw();
+    });
+};
+// 들어가면 true, 못 들어가면 그 이유(문구)를 돌려줌
+async function joinRoom(code, name){
+  const n = await getNet().catch(() => null);
+  if (!n) { closeModal(); connectOrExplain(); return '연결할 수 없어요'; }
+  try {
+    const meta = await n.get(`rooms/${code}/meta`);
+    if (!meta) return '그런 방이 없어요. 코드를 다시 확인해 주세요';
+    const players = await n.get(`rooms/${code}/players`) || {};
+    const now = n.now();
+    if (meta.status === 'lobby') {
+      const others = Object.entries(players).filter(([u, p]) => u !== n.uid && p && p.online);
+      if (!players[n.uid] && others.length >= 4) return '자리가 없어요 (한 방에 4명까지)';
+      if (others.some(([, p]) => p.name === name)) return `이 방에 벌써 「${name}」이(가) 있어요. 다른 닉네임을 써 주세요`;
+      await n.set(`rooms/${code}/players/${n.uid}`, { name, joined: (players[n.uid] && players[n.uid].joined) || now, online: true });
+    } else {
+      // 이미 시작한 방: 같은 닉네임의 끊긴 자리가 있으면 그 자리로 돌아감 (새 학생은 다음 판에)
+      const game = normGame(await n.get(`rooms/${code}/game`));
+      const mine = game && game.seats.find(s => s.id === n.uid);
+      const back = game && game.seats.find(s => !s.cpu && s.name === name && !(players[s.id] && players[s.id].online));
+      if (!mine && !back) return '이미 게임 중인 방이에요. 이번 판이 끝나면 들어올 수 있어요';
+      await n.set(`rooms/${code}/players/${n.uid}`, { name: mine ? mine.name : back.name, joined: (players[n.uid] && players[n.uid].joined) || now, online: true });
+    }
+    closeModal();
+    enterRoom(code, name);
+    return true;
+  } catch (e) { return '들어가지 못했어요. 다시 해 주세요'; }
+}
+
+/* ---------- 방 안 ---------- */
+function enterRoom(code, name){
+  cleanupOnline();
+  clearTimeout(cpuTimer); stopTurnTimer();
+  O.code = code; O.uid = net.uid; O.name = name; O.lastReject = net.now();
+  sess.set('rummi_room', { code, name });
+  const base = `rooms/${code}`;
+  net.onConnected(c => {
+    if (O.code !== code) return;
+    $('netBanner').classList.toggle('show', !c);
+    if (!c) return;
+    net.onDisconnectSet(`${base}/players/${net.uid}/online`, false);
+    net.set(`${base}/players/${net.uid}/online`, true).catch(() => {});
+  });
+  O.unsub.push(net.on(`${base}/meta`, meta => {
+    if (O.code !== code) return;
+    if (!meta) return roomClosed();
+    const wasStatus = O.meta && O.meta.status;
+    O.meta = meta;
+    const amHost = meta.host === net.uid;
+    if (amHost && !O.isHost) becomeHost();
+    if (!amHost && O.isHost) stopHost();
+    if (meta.status === 'lobby') {
+      if (wasStatus && wasStatus !== 'lobby') { O.game = null; G = null; stopTurnTimer(); closeModal(); }
+      showScreen('lobbyScreen'); renderLobby();
+    } else if (O.game) { showScreen('gameScreen'); syncView(); }
+  }));
+  O.unsub.push(net.on(`${base}/players`, p => {
+    O.players = p || {};
+    const me = O.players[net.uid];
+    // 심판이 받아주지 않은 행동 알림 (들어오기 전의 옛 알림은 무시)
+    if (me && me.reject && me.reject.t > O.lastReject) { O.lastReject = me.reject.t; toast(me.reject.reason, true, 3600); O.pending = false; }
+    if (O.meta && O.meta.status === 'lobby') renderLobby();
+    if (O.isHost) hostSyncPlayers();
+  }));
+  O.unsub.push(net.on(`${base}/game`, g => {
+    const prevTurn = O.game && O.game.turnId;
+    O.game = normGame(g);
+    if (!O.game) return;
+    if (O.game.turnId !== prevTurn) O.pending = false;
+    if (O.meta && O.meta.status !== 'lobby') { showScreen('gameScreen'); syncView(); }
+  }));
+  O.unsub.push(net.on(`${base}/hands/${net.uid}`, h => { O.hand = arr(h).map(Number); if (O.game) syncView(); }));
+  O.unsub.push(net.on(`${base}/preview`, pv => {
+    O.preview = pv ? { turnId: pv.turnId, board: arr(pv.board).map(s => arr(s).map(Number)).filter(s => s.length) } : null;
+    if (O.game && O.game.turn !== mySeat()) syncView();
+  }));
+  O.timers.push(setInterval(checkHostAlive, 2000));
+  O.timers.push(setInterval(tickOnlineChips, 250));
+  // 심판 응답이 오지 않으면 다시 조작할 수 있게 풂 (인터넷이 잠깐 끊겼을 때)
+  O.timers.push(setInterval(() => { if (O.pending && Date.now() - O.pendingAt > 6000) { O.pending = false; if (G) render(); } }, 1000));
+}
+function roomClosed(){
+  const inRoom = !!O.code;
+  cleanupOnline(); sess.set('rummi_room', null);
+  G = null; stopTurnTimer();
+  showScreen('startScreen'); renderStart();
+  if (inRoom) infoModal('방이 닫혔어요', '방장이 방을 닫았거나 오래되어 정리됐어요.');
+}
+function cleanupOnline(){
+  O.unsub.forEach(f => { try { f(); } catch (e) {} }); O.unsub = [];
+  O.timers.forEach(t => clearInterval(t)); O.timers = [];
+  stopHost();
+  clearTimeout(O.pvTimer);
+  if (net && O.code) { try { net.cancelDisconnect(`rooms/${O.code}/players/${net.uid}/online`); } catch (e) {} }
+  Object.assign(O, { code: null, meta: null, players: {}, game: null, hand: [], preview: null, previewOn: false, order: [], engine: null,
+    pending: false, workTurn: null, lastLog: '', lastTurnId: null, resultShown: null, pvTimer: null, pvSent: '', lastViewBoard: null, timerFor: '' });
+  $('netBanner').classList.remove('show');
+  closeModal();
+}
+async function checkHostAlive(){
+  const m = O.meta; if (!m || O.isHost || !net) return;
+  if (net.now() - (m.hostBeat || 0) <= CONFIG.ONLINE.HOST_TIMEOUT_SEC * 1000) return;
+  // 남은 학생 중 가장 먼저 들어온 사람이 심판을 이어받음
+  const cands = Object.entries(O.players).filter(([u, p]) => p && p.online && u !== m.host).sort((a, b) => a[1].joined - b[1].joined);
+  if (!cands.length || cands[0][0] !== net.uid) return;
+  await net.txn(`rooms/${O.code}/meta`, cur => {
+    if (!cur) return undefined;
+    if (net.now() - (cur.hostBeat || 0) <= CONFIG.ONLINE.HOST_TIMEOUT_SEC * 1000) return undefined;
+    cur.host = net.uid; cur.hostBeat = net.now();
+    return cur;
+  });
+}
+
+/* ---------- 방장(심판) ---------- */
+async function becomeHost(){
+  O.isHost = true;
+  const base = `rooms/${O.code}`;
+  O.hostTimers = [];
+  const beat = () => net.update({ [`${base}/meta/hostBeat`]: net.now() }).catch(() => {});
+  beat();
+  O.hostTimers.push(setInterval(beat, CONFIG.ONLINE.HOST_BEAT_SEC * 1000));
+  O.engine = makeRummiEngine({
+    now: () => net.now(),
+    commit: (g, H, P) => {
+      const upd = { [`${base}/game`]: g, [`${base}/secret`]: { pool: P.length ? P : null } };
+      const hands = {}; Object.keys(H).forEach(k => hands[k] = H[k].length ? H[k] : null);
+      upd[`${base}/hands`] = hands;
+      if (g.turnId !== O.hostLastTurn) { upd[`${base}/preview`] = null; O.hostLastTurn = g.turnId; }   // 차례가 바뀌면 임시 판 지우기
+      net.update(JSON.parse(JSON.stringify(upd))).catch(() => {});
+    },
+    isAway: i => { const s = O.engine && O.engine.game && O.engine.game.seats[i]; return !!s && !s.cpu && !(O.players[s.id] && O.players[s.id].online); },
+  });
+  // 이어받은 경우: 판·모든 패·더미를 읽어 와서 계속
+  if (O.meta && O.meta.status !== 'lobby') {
+    const g = normGame(await net.get(`${base}/game`));
+    if (g) {
+      const H = {};
+      for (const s of g.seats) H[s.id] = arr(await net.get(`${base}/hands/${s.id}`)).map(Number);
+      const P = arr((await net.get(`${base}/secret`) || {}).pool).map(Number);
+      O.engine.load(g, H, P);
+      O.hostLastTurn = g.turnId;
+      if (g.phase === 'play') { g.turnEnds = net.now() + rules(g.mode).TURN_SECONDS * 1000; g.cpuAt = 0; }
+      hostSyncPlayers();
+      O.engine.touch();                     // 새 마감 시각을 모두에게 알림
+      toast('이제 내 태블릿이 심판을 맡아요', false, 2600);
+    }
+  }
+  O.hostUnsub = net.on(`${base}/actions`, acts => {
+    if (!acts || !O.engine || !O.engine.game) return;
+    const g = O.engine.game;
+    for (const [key, a] of Object.entries(acts)) {
+      net.remove(`${base}/actions/${key}`).catch(() => {});
+      const i = g.seats.findIndex(s => s.id === a.uid);
+      if (i < 0 || a.turnId !== g.turnId) continue;
+      const r = O.engine.act(i, a.kind, a.board);
+      if (!r.ok) net.set(`${base}/players/${a.uid}/reject`, { reason: r.reason, t: net.now() }).catch(() => {});
+    }
+  });
+  O.hostTimers.push(setInterval(() => O.engine && O.engine.tick(), 300));
+  O.hostTimers.push(setInterval(hostSyncPlayers, 2000));   // 끊김·재입장을 주기적으로 다시 맞춤
+  if (O.meta && O.meta.status === 'lobby') renderLobby();
+}
+function stopHost(){
+  (O.hostTimers || []).forEach(t => clearInterval(t)); O.hostTimers = [];
+  if (O.hostUnsub) { O.hostUnsub(); O.hostUnsub = null; }
+  O.isHost = false;
+}
+function hostSyncPlayers(){
+  const E = O.engine; if (!E || !E.game || E.game.phase !== 'play') return;
+  const g = E.game;
+  // 다시 들어온 학생: 같은 닉네임의 끊긴 자리를 새 기기에 넘겨줌
+  for (const [u, p] of Object.entries(O.players)) {
+    if (!p || !p.online || g.seats.some(s => s.id === u)) continue;
+    const i = g.seats.findIndex(s => !s.cpu && s.name === p.name && !(O.players[s.id] && O.players[s.id].online));
+    if (i >= 0) { const old = g.seats[i].id; E.reassignSeat(i, u); net.remove(`rooms/${O.code}/players/${old}`).catch(() => {}); }
+  }
+  g.seats.forEach((s, i) => { if (!s.cpu) E.setAway(i, !(O.players[s.id] && O.players[s.id].online)); });
+}
+
+/* ---------- 대기실 ---------- */
+function lobbyHumans(){ return Object.entries(O.players).filter(([, p]) => p && p.online).sort((a, b) => a[1].joined - b[1].joined).slice(0, 4); }
+function renderLobby(){
+  const m = O.meta; if (!m) return;
+  const set = Object.assign({}, CONFIG.ONLINE.DEFAULTS, m.settings || {});
+  const host = m.host === net.uid;
+  $('lobbyCode').innerHTML = O.code.split('').map(d => `<span>${d}</span>`).join('');
+  const humans = lobbyHumans();
+  const total = Math.max(set.seats, humans.length);
+  let html = '';
+  for (let k = 0; k < 4; k++) {
+    if (k < humans.length) {
+      const [u, p] = humans[k];
+      const who = (u === m.host ? '👑 방장' : '친구') + (u === net.uid ? ' · 나' : '');
+      html += `<div class="seat filled ${u === net.uid ? 'me' : ''}"><span class="who">${who}</span><span class="nm">${esc(p.name)}</span></div>`;
+    } else if (k < total) html += `<div class="seat cpu"><span class="who">빈자리</span><span class="nm">🤖 컴퓨터</span></div>`;
+    else html += `<div class="seat"><span class="who">　</span><span class="nm">—</span></div>`;
+  }
+  $('lobbySeats').innerHTML = html;
+  const row = (opt, items) => {
+    $('lobbyOpts').querySelector(`[data-opt="${opt}"]`).innerHTML = items.map(([v, t, off]) =>
+      `<button class="tg ${String(set[opt]) === String(v) ? 'on' : ''}" data-v="${v}" ${host && !off ? '' : 'disabled'}>${t}</button>`).join('');
+  };
+  row('mode', [['quick', `빠른 판 ${CONFIG.QUICK.TURN_SECONDS}초`], ['full', `정식 ${CONFIG.FULL.TURN_SECONDS}초`]]);
+  row('seats', CONFIG.ONLINE.SEAT_OPTIONS.map(v => [v, `${v}명`, v < humans.length]));
+  $('startBtn').classList.toggle('hidden', !host);
+  $('lobbyMsg').textContent = host
+    ? (humans.length < 2 ? '친구들에게 방 코드를 알려 주세요 · 혼자서도 컴퓨터와 시작할 수 있어요' : `${humans.length}명${total > humans.length ? ` + 컴퓨터 ${total - humans.length}명` : ''}으로 시작해요`)
+    : '방장이 시작하길 기다리는 중…';
+}
+$('lobbyOpts').addEventListener('click', e => {
+  const b = e.target.closest('.tg'); if (!b || b.disabled || !O.meta || O.meta.host !== net.uid) return;
+  const opt = b.parentElement.dataset.opt;
+  const set = Object.assign({}, CONFIG.ONLINE.DEFAULTS, O.meta.settings || {}, { [opt]: opt === 'seats' ? Number(b.dataset.v) : b.dataset.v });
+  net.set(`rooms/${O.code}/meta/settings`, set).catch(() => {});
+});
+$('startBtn').onclick = () => {
+  if (!O.isHost || !O.engine) return;
+  const set = Object.assign({}, CONFIG.ONLINE.DEFAULTS, O.meta.settings || {});
+  const humans = lobbyHumans();
+  const total = Math.max(set.seats, humans.length);
+  const seats = humans.map(([u, p]) => ({ id: u, name: p.name }));
+  for (let k = 1; seats.length < total; k++) seats.push({ id: 'cpu' + k, name: CONFIG.CPU_NAMES[k - 1], cpu: true });
+  net.update({ [`rooms/${O.code}/actions`]: null, [`rooms/${O.code}/preview`]: null });
+  O.engine.newGame(seats, set);
+  net.update({ [`rooms/${O.code}/meta/status`]: 'playing' });
+};
+$('leaveLobbyBtn').onclick = () => leaveRoom();
+async function leaveRoom(){
+  if (net && O.code) {
+    const code = O.code, base = `rooms/${code}`;
+    const others = Object.entries(O.players).filter(([u, p]) => p && p.online && u !== net.uid).sort((a, b) => a[1].joined - b[1].joined);
+    try {
+      if (O.isHost && !others.length) { await net.remove(base); await net.remove(`roomIndex/${code}`); }
+      else {
+        if (O.isHost) await net.update({ [`${base}/meta/host`]: others[0][0], [`${base}/meta/hostBeat`]: net.now() });
+        if (O.meta && O.meta.status === 'lobby') await net.remove(`${base}/players/${net.uid}`);
+        else await net.set(`${base}/players/${net.uid}/online`, false);
+      }
+    } catch (e) {}
+  }
+  cleanupOnline(); sess.set('rummi_room', null);
+  G = null; stopTurnTimer();
+  showScreen('startScreen'); renderStart();
+}
+
+/* ---------- 게임: 서버 상태 → 화면용 판(G) ---------- */
+// 상대가 판을 바꿀 때 반짝일 타일: 새로 올라온 타일 + 원래 세트에서 떨어져 나온 타일
+function movedTiles(prev, next){
+  const where = {}; prev.forEach(s => s.forEach(id => where[id] = s));
+  const out = [];
+  next.forEach(s => { const ns = new Set(s); s.forEach(id => { const ps = where[id]; if (!ps || !ps.every(x => ns.has(x))) out.push(id); }); });
+  return out;
+}
+const byColor = (a, b) => (isJoker(a) || isJoker(b)) ? (isJoker(a) - isJoker(b) || a - b) : (tileColor(a) - tileColor(b) || tileNum(a) - tileNum(b));
+const cloneBoard = b => b.map(s => s.slice());
+
+function syncView(){
+  const g = O.game; if (!g) return;
+  const me = mySeat(); if (me < 0) return;
+  const n = g.seats.length, seatOf = k => (me + k) % n;
+  const prev = G && G.kind === 'online' && G.gameId === g.gameId ? G : null;
+  const myTurn = g.phase === 'play' && g.turn === me;
+  // 내 패 순서: 손으로 정리한 순서는 지키고, 새로 받은 타일만 색별로 뒤에
+  const hand = O.hand;
+  const keep = O.order.filter(id => hand.includes(id));
+  O.order = keep.concat(hand.filter(id => !keep.includes(id)).sort(byColor));
+  const view = {
+    kind: 'online', gameId: g.gameId, code: O.code, mode: g.mode, version: g.v,
+    names: [], hands: [], melded: [], seatOf: [],
+    current: g.phase === 'play' ? (g.turn - me + n) % n : -1,
+    pool: new Array(g.poolCount || 0).fill(0), over: g.phase === 'over', result: null, round: 1,
+  };
+  for (let k = 0; k < n; k++) {
+    const s = g.seats[seatOf(k)];
+    view.seatOf.push(seatOf(k));
+    view.names.push(k === 0 ? '나' : s.name);
+    view.melded.push(!!s.melded);
+    view.hands.push(k === 0 ? null : new Array(s.count || 0).fill(-1));
+  }
+  let turnStarted = false;
+  if (myTurn && prev && O.workTurn === g.turnId) {
+    // 내 차례 진행 중: 내가 옮기는 판을 그대로 둠
+    view.board = prev.board; view.hands[0] = prev.hands[0]; view.turnStart = prev.turnStart;
+    const known = new Set(prev.turnStart.hand), extra = hand.filter(id => !known.has(id));
+    if (extra.length) { view.hands[0] = view.hands[0].concat(extra); view.turnStart.hand = view.turnStart.hand.concat(extra); }
+  } else {
+    view.board = cloneBoard(g.board);
+    view.hands[0] = O.order.slice();
+    view.turnStart = { board: cloneBoard(g.board), hand: O.order.slice() };
+    O.previewOn = false;
+    if (myTurn) { O.workTurn = g.turnId; O.pvSent = JSON.stringify(g.board); turnStarted = true; }
+    else {
+      O.workTurn = null;
+      const pv = O.preview;
+      O.previewOn = !!(pv && g.phase === 'play' && pv.turnId === g.turnId);
+      if (O.previewOn) view.board = cloneBoard(pv.board);
+    }
+    if (O.lastViewBoard) { const mv = movedTiles(O.lastViewBoard, view.board); if (mv.length) flashIds = mv; }
+    O.lastViewBoard = cloneBoard(view.board);
+  }
+  if (myTurn) O.lastViewBoard = cloneBoard(g.board);
+  G = view;
+  if (!prev || turnStarted) selected.clear();
+  [...selected].forEach(id => { if (!G.hands[0].includes(id) && !G.board.some(s => s.includes(id))) selected.delete(id); });
+
+  // 알림: 무슨 일이 있었는지 + 내 차례
+  if (g.turnId !== O.lastTurnId || g.log !== O.lastLog) {
+    const first = O.lastTurnId === null;
+    O.lastTurnId = g.turnId; O.lastLog = g.log;
+    if (turnStarted) { toast(first || !g.log ? '내 차례예요' : `${g.log} · 내 차례예요`, false, 3200); glow(); }
+    else if (g.log && g.phase === 'play') toast(g.log, /위반|안 맞아/.test(g.log), 2600);
+  }
+  render();
+  // 내 차례 타이머 (심판이 정한 마감 시각 기준)
+  const tkey = myTurn && !O.pending ? `${g.turnId}:${g.turnEnds}` : '';
+  if (tkey !== O.timerFor) { O.timerFor = tkey; if (tkey) startTurnTimer(); else stopTurnTimer(); }
+  // 결과
+  if (g.phase === 'over' && g.result && O.resultShown !== g.gameId) {
+    O.resultShown = g.gameId;
+    stopTurnTimer();
+    setTimeout(showOnlineResult, 600);
+  }
+}
+function glow(){ const el = $('turnGlow'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); beep(880, 0.08); }
+
+// 상대 칩: 이름 · 등록 표시 · 남은 장 수 · (차례면) 남은 시간
+function renderOnlineChips(players){
+  const g = O.game; if (!g) return;
+  for (let k = 1; k < G.seatOf.length; k++) {
+    const s = g.seats[G.seatOf[k]];
+    const active = G.current === k && !G.over;
+    const crown = O.meta && s.id === O.meta.host ? '👑' : s.cpu ? '🤖' : '';
+    const c = document.createElement('div');
+    c.className = 'sticker chip' + (active ? ' active' : '') + (active && s.cpu ? ' thinking' : '') + (s.away ? ' away' : '');
+    c.innerHTML = `<span class="nm-full">${crown}${esc(s.name)}</span><span class="nm-short">${crown}${esc(s.cpu ? '컴' + s.name.slice(-1) : s.name.slice(0, 3))}</span>`
+      + (s.melded ? '<span class="reg">등록</span>' : '')
+      + `<span class="cnt"><i class="mini"></i>×${s.count}</span>`
+      + (active && !s.cpu && !s.away ? '<span class="left" data-left></span>' : '');
+    players.appendChild(c);
+  }
+  tickOnlineChips();
+}
+function tickOnlineChips(){
+  const el = document.querySelector('#players [data-left]');
+  if (!el || !O.game || !net) return;
+  el.textContent = Math.max(0, Math.ceil((O.game.turnEnds - net.now()) / 1000));
+}
+
+/* ---------- 내 조작 → 심판에게 ---------- */
+function onlineLocalChange(){
+  O.order = G.hands[0].concat(O.order.filter(id => !G.hands[0].includes(id)));
+  if (G.current !== 0 || G.over || !O.game || O.workTurn !== O.game.turnId) return;
+  if (O.pvTimer) return;            // 이미 보낼 예정 — 그때 최신 판을 보냄
+  O.pvTimer = setTimeout(() => { O.pvTimer = null; sendPreview(); }, CONFIG.ONLINE.PREVIEW_MS);
+}
+function sendPreview(){
+  if (!G || G.kind !== 'online' || G.current !== 0 || O.pending || !O.game || O.workTurn !== O.game.turnId) return;
+  const key = JSON.stringify(G.board); if (key === O.pvSent) return;
+  O.pvSent = key;
+  net.set(`rooms/${O.code}/preview`, { turnId: O.game.turnId, board: G.board.length ? G.board : null, t: net.now() }).catch(() => {});
+}
+function sendOnline(kind, board){
+  O.pending = true; O.pendingAt = Date.now();
+  clearTimeout(O.pvTimer); O.pvTimer = null;
+  selected.clear();
+  if (O.isHost) {
+    const r = O.engine.act(mySeat(), kind, board);
+    if (!r.ok) toast(r.reason, true, 3600);
+  } else {
+    net.push(`rooms/${O.code}/actions`, { uid: net.uid, kind, board: board ? cloneBoard(board) : null, turnId: O.game.turnId, t: net.now() })
+      .catch(() => { O.pending = false; toast('보내지 못했어요. 인터넷을 확인해 주세요', true); render(); });
+  }
+  render();
+}
+
+/* ---------- 메뉴 · 결과 ---------- */
+function showOnlineMenu(){
+  const modeTxt = G.mode === 'quick' ? '빠른 판' : '정식';
+  showModal(`<h2>메뉴</h2><p class="sub">방 코드 ${O.code} · ${modeTxt} · ${CONFIG.APP_VERSION}${O.isHost ? ' · 내가 심판' : ''}</p><div class="menu-list">
+      <button class="btn primary" id="mResume">계속하기</button>
+      <button class="btn" id="mWords">용어 풀이 (등록·그룹·연속)</button>
+      <button class="btn" id="mRules">규칙 전체 보기</button>
+      <button class="btn" id="mLeave">방 나가기</button></div>`,
+    m => {
+      m.querySelector('#mResume').onclick = closeModal;
+      m.querySelector('#mWords').onclick = showWords;
+      m.querySelector('#mRules').onclick = showRules;
+      m.querySelector('#mLeave').onclick = () => showModal(`<h2>방을 나갈까요?</h2>
+        <p class="sub">게임 중에 나가면 내 차례는 자동으로 1장 뽑고 넘어가요.<br>같은 닉네임으로 다시 들어오면 이어서 할 수 있어요.</p>
+        <div class="modal-actions"><button class="btn" id="mNo">취소</button><button class="btn pink" id="mYes">나가기</button></div>`,
+        mm => { mm.querySelector('#mNo').onclick = closeModal; mm.querySelector('#mYes').onclick = leaveRoom; });
+    });
+}
+function showOnlineResult(){
+  const g = O.game; if (!g || !g.result || g.phase !== 'over') return;
+  const R = g.result, me = mySeat();
+  const title = R.winner === me ? '승리! 🎉' : R.winner >= 0 ? `${esc(g.seats[R.winner].name)} 승리!` : '게임 끝';
+  const medal = ['🥇', '🥈', '🥉', '4'];
+  const rows = R.rows.map((r, k) => {
+    const isMe = r.seat === me;
+    const left = r.count === 0 ? '다 냄' : `${r.pts}점`;
+    return `<tr class="${isMe ? 'me' : ''}"><td>${medal[k]} ${esc(r.name)}${isMe ? ' (나)' : ''}</td><td>${r.count}장</td><td>${left}</td></tr>`;
+  }).join('');
+  const host = O.isHost;
+  showModal(`<h2>${title}</h2><p class="sub">${esc(R.why || '')}</p>
+    <table class="res"><tr><th>순위</th><th>남은 타일</th><th>남은 점수</th></tr>${rows}</table>
+    <p class="sub" style="font-size:15px">${host ? '「다시 하기」를 누르면 모두 대기실로 모여요 (새 친구도 들어올 수 있어요)' : '방장이 「다시 하기」를 누르면 대기실로 모여요'}</p>
+    <div class="modal-actions"><button class="btn" id="mLeave">나가기</button>${host ? '<button class="btn primary" id="mAgain">다시 하기</button>' : ''}</div>`,
+    m => {
+      m.querySelector('#mLeave').onclick = leaveRoom;
+      const a = m.querySelector('#mAgain');
+      if (a) a.onclick = backToLobby;
+    });
+}
+// 다시 하기: 모두 대기실로 (나간 학생 자리는 정리)
+function backToLobby(){
+  if (!O.isHost) return;
+  const base = `rooms/${O.code}`;
+  const upd = { [`${base}/game`]: null, [`${base}/hands`]: null, [`${base}/secret`]: null, [`${base}/preview`]: null, [`${base}/actions`]: null, [`${base}/meta/status`]: 'lobby' };
+  for (const [u, p] of Object.entries(O.players)) if (!p || !p.online) upd[`${base}/players/${u}`] = null;
+  net.update(upd).catch(() => {});
+}
+
 /* ---------- 시작 ---------- */
 renderStart();
+// 새로고침했으면 같은 방으로 자동으로 돌아가기
+(async () => {
+  const r = sess.get('rummi_room');
+  if (r && onlineReady()) {
+    $('nameInput').value = r.name;
+    const ok = await joinRoom(r.code, r.name);
+    if (ok !== true) sess.set('rummi_room', null);
+  }
+})();
 // 글꼴(Jua, Black Han Sans)을 못 받았으면 굵은 기본 글꼴로 대신
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => {
